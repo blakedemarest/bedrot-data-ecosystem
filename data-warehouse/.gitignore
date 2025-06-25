@@ -1,0 +1,41 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+
+# Data files that might contain sensitive information
+*.csv
+*.xlsx
+*.xls
+*.json
+/data_lake/
+
+# Local environment settings
+.env
+.env.local
+.env.*.local
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+.DS_Store
