@@ -190,6 +190,23 @@ Code is organized by platform under `src/<platform>/`:
 
 Example platforms: `distrokid/`, `spotify/`, `tiktok/`, `metaads/`, `linktree/`, `toolost/`
 
+### Repository Structure
+The data_lake root directory is organized as follows:
+- `src/` - Source code for extractors, cleaners, and common utilities
+- `tests/` - Test suites for all services and components (includes Meta API tests)
+- `sandbox/` - Experimental and exploratory code
+  - `analysis/` - Business metrics and revenue analysis scripts
+  - `verified/` - Tested and verified Jupyter notebooks
+- `scripts/` - Utility scripts and tools
+  - `cookie_management/` - Cookie refresh and status scripts
+  - `deployment/` - Deployment and environment setup scripts
+  - `testing/` - Test runners and validation scripts
+- `docs/` - Documentation and architecture diagrams (includes data flow diagrams)
+- `etl/` - Data warehouse ETL pipelines
+- `6_automated_cronjob/` - Automated pipeline execution scripts
+- `config/` - Configuration files for various services
+- `logs/` - Pipeline execution and error logs
+
 ### Data Warehouse ETL Pipelines
 Located in `etl/` directory:
 - `etl_master_data.py` - Load artists, platforms, and tracks (master data)

@@ -16,34 +16,64 @@ The sandbox zone serves as a secure, isolated environment for data exploration, 
 ## Directory Structure
 ```
 sandbox/
-├── experiments/
-│   ├── artist_clustering/
-│   │   ├── clustering_results.parquet
-│   │   ├── feature_engineering.py
-│   │   └── model_evaluation.ipynb
-│   ├── streaming_prediction/
-│   │   ├── time_series_models.py
-│   │   └── forecast_validation.csv
-│   └── social_media_sentiment/
-│       ├── sentiment_analysis.ipynb
-│       └── labeled_dataset.json
-├── users/
-│   ├── data_scientist_1/
-│   │   ├── stream_analysis/
-│   │   └── engagement_metrics/
-│   ├── analyst_2/
-│   │   ├── campaign_performance/
-│   │   └── roi_analysis/
-│   └── shared/
-│       ├── common_utilities.py
-│       └── shared_datasets/
-├── prototypes/
-│   ├── real_time_dashboard/
-│   ├── automated_reporting/
-│   └── data_quality_monitoring/
-└── archive/
-    ├── completed_experiments/
-    └── deprecated_prototypes/
+├── analysis/               # Business metrics and revenue analysis scripts
+│   ├── analysis_bedrot_business_metrics.py          # Core business KPIs and ROI
+│   ├── analysis_bedrot_business_metrics_with_royalties.py  # Revenue with royalty splits
+│   ├── analyze_royalty_adjusted_revenue.py          # Royalty impact analysis
+│   ├── run_meta_ads_analysis.py                     # Meta Ads campaign performance
+│   └── get_complete_meta_ads_spend.py               # Total ad spend calculations
+├── verified/               # Production-tested Jupyter notebooks
+│   ├── distrokid_landing2raw.ipynb
+│   ├── distrokid_raw2staging.ipynb
+│   ├── distrokid_staging2curated.ipynb
+│   ├── meta_ads_exploratory_analysis_4_cleaning.ipynb
+│   ├── metaads_landing2raw.ipynb
+│   ├── metaads_raw2staging.ipynb
+│   ├── metaads_staging2curated.ipynb
+│   ├── streaming_data_tidy.ipynb
+│   ├── tiktok_raw2staging.ipynb
+│   ├── toolost_landing2raw.ipynb
+│   ├── toolost_raw2staging.ipynb
+│   └── toolost_staging2curated.ipynb
+├── experiments/            # Active research and development
+│   ├── fetch_meta_ads_via_api.py
+│   ├── meta_ads_api_fetcher.py
+│   └── analyze_meta_ads_complete.py
+└── notebooks/              # Exploration and data analysis
+    ├── financial_analysis.ipynb
+    ├── linktree_landing2raw.ipynb
+    ├── linktree_raw2staging.ipynb
+    ├── linktree_staging2curated.ipynb
+    └── meta_ads_complete_analysis.ipynb
+```
+
+## Analysis Scripts
+
+The `analysis/` subdirectory contains production-ready business analysis scripts that generate key insights for BEDROT PRODUCTIONS:
+
+### Core Business Metrics (`analysis_bedrot_business_metrics.py`)
+- Calculates Cost Per Acquisition (CPA) from Meta Ads spend
+- Computes Revenue Per Stream across all platforms
+- Generates ROI metrics for marketing campaigns
+- Analyzes catalog performance by artist and track
+
+### Royalty Analysis (`analysis_bedrot_business_metrics_with_royalties.py`, `analyze_royalty_adjusted_revenue.py`)
+- Applies royalty splits to revenue calculations
+- Tracks collaborator earnings and splits
+- Provides net revenue after royalty distributions
+- Analyzes impact of different royalty structures
+
+### Meta Ads Analysis (`run_meta_ads_analysis.py`, `get_complete_meta_ads_spend.py`)
+- Deep dive into Meta Ads campaign performance
+- Calculate total ad spend across all campaigns
+- Track conversion metrics and ROAS (Return on Ad Spend)
+- Identify best-performing campaigns and creatives
+
+### Usage
+All analysis scripts read from the curated zone (`4_curated/`) and expect the standard data lake structure:
+```bash
+cd sandbox/analysis
+python analysis_bedrot_business_metrics.py
 ```
 
 ## Sandbox Rules & Guidelines

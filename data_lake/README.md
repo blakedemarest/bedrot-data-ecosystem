@@ -17,38 +17,32 @@ For full architectural diagrams and technical deep-dive, see: `docs/BEDROT_Repos
 
 ```plaintext
 BEDROT_DATA_LAKE/
-├── .agent/
-├── .venv/
-├── .windsurf/
-├── archive/
-├── curated/
-├── landing/
-├── minio/
-├── raw/
-├── sandbox/
-├── src/
-│   ├── .playwright_dk_session/ (configurable via PLAYWRIGHT_SESSION_DIR)
-│   ├── distrokid/
-│   │   ├── extractors/
-│   │   └── cleaners/
-│   ├── linktree/
-│   │   ├── extractors/
-│   │   └── cleaners/
-│   ├── metaads/
-│   │   ├── extractors/
-│   │   └── cleaners/
-│   ├── tiktok/
-│   │   ├── extractors/
-│   │   ├── cleaners/
-│   │   └── cookies/
-│   ├── toolost/
-│   │   ├── extractors/
-│   │   └── cleaners/
-├── staging/
-├── staged/
-├── tests/
-├── agents/
-│   └── knowledge/
+├── 1_landing/           # Raw ingested data from external sources
+├── 2_raw/               # Validated and standardized data
+├── 3_staging/           # Cleaned and transformed data
+├── 4_curated/           # Business-ready datasets
+├── 5_archive/           # Historical data preservation
+├── 6_automated_cronjob/ # Pipeline orchestration scripts
+├── src/                 # Source code organized by platform
+│   ├── common/          # Shared utilities and helpers
+│   ├── distrokid/       # DistroKid extractors and cleaners
+│   ├── spotify/         # Spotify for Artists integration
+│   ├── tiktok/          # TikTok Creator analytics
+│   ├── metaads/         # Meta Ads campaign data
+│   ├── linktree/        # Linktree analytics
+│   └── toolost/         # TooLost distributor data
+├── sandbox/             # Experimental and development code
+│   ├── analysis/        # Business metrics and revenue analysis
+│   └── verified/        # Production-ready notebooks
+├── scripts/             # Utility and management scripts
+│   ├── cookie_management/  # Authentication management
+│   ├── deployment/      # Setup and deployment tools
+│   └── testing/         # Test utilities
+├── tests/               # Test suites for all services
+├── etl/                 # Data warehouse ETL pipelines
+├── docs/                # Documentation and diagrams
+├── config/              # Service configurations
+└── logs/                # Execution and error logs
 ```
 
 ### Zone-Based Data Flow
