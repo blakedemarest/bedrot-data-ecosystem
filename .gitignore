@@ -1,0 +1,333 @@
+# BEDROT Data Ecosystem .gitignore
+
+# Ignore all instances of CLAUDE.md (case-insensitive)
+CLAUDE.md
+Claude.md
+claude.md
+**/CLAUDE.md
+**/Claude.md
+**/claude.md
+# Professional repository setup for potential employers
+
+# =========================
+# Data Files & Directories
+# =========================
+# Raw data zones (contain proprietary business data)
+landing/
+raw/
+staging/
+curated/
+archive/
+
+# Data files
+*.parquet
+*.csv
+*.xlsx
+*.tsv
+*.ndjson
+*.json
+*.avro
+*.orc
+*.feather
+*.zip
+*.gz
+
+# Database files
+*.duckdb
+*.db
+*.sqlite
+*.db-journal
+*.db-wal
+*.db-shm
+bedrot_analytics.db*
+
+# Exception: Keep schema definitions and examples
+!**/schemas/*.json
+!**/examples/*.json
+!**/examples/*.csv
+!.env.example
+
+# =========================
+# Credentials & Secrets
+# =========================
+# Environment files
+.env
+.env.*
+.env.local
+**/.env.local
+!.env.example
+!.env.template
+!**/.env.template
+
+# Authentication files
+*.key
+*.pem
+*.crt
+*.cer
+*_secret*
+*_token*
+*_password*
+credentials.yaml
+credentials.json
+config/secrets/
+auth/
+
+# Platform-specific credentials
+**/cookies/*.json
+**/cookies/*.txt
+user_data_dir/
+persistent_sessions/
+
+# API keys and tokens
+api_keys.json
+tokens.json
+service_account.json
+
+# =========================
+# Personal & Business Data
+# =========================
+# Financial data
+*bank*.csv
+*revenue*.csv
+*earnings*.csv
+*payout*.csv
+*transaction*.csv
+*financial*.csv
+
+# Artist-specific data
+*pig1987*.csv
+*zonea0*.csv
+*zone_a0*.csv
+*sxnctuary*.csv
+
+# Marketing data
+*campaign*.csv
+*ads*.csv
+*meta_ads*.csv
+*facebook*.csv
+*instagram*.csv
+
+# =========================
+# Cache & Temporary Files
+# =========================
+# Agent cache
+.agent/cache/
+.agent/logs/
+.agent/context/
+_hashes.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+*.ipynb
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.yarn-integrity
+.next/
+out/
+dist/
+.cache/
+
+# =========================
+# Virtual Environments
+# =========================
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+virtualenv/
+pipenv/
+
+# =========================
+# IDE & Editor Files
+# =========================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Windsurf
+.windsurf/
+
+# Vim
+*.swp
+*.swo
+*.swn
+.*.swp
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# =========================
+# Logs & Reports
+# =========================
+logs/
+*.log
+*.log.*
+log/
+reports/
+*.report
+*_report.html
+*_report.pdf
+diagnostic_reports/
+
+# =========================
+# OS Files
+# =========================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# =========================
+# Backup & Archive
+# =========================
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+*.temp
+~$*
+
+# =========================
+# MinIO & Storage
+# =========================
+.minio.sys/
+.s3/
+minio_data/
+
+# =========================
+# Docker
+# =========================
+.dockerignore
+docker-compose.override.yml
+
+# =========================
+# Testing
+# =========================
+.tox/
+.nox/
+htmlcov/
+.benchmarks/
+
+# =========================
+# Documentation Build
+# =========================
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# =========================
+# Project Specific
+# =========================
+# Batch file outputs
+*.out
+cron_output.txt
+
+# Screenshots and media
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.mov
+
+# Temporary processing
+temp/
+tmp/
+processing/
+work/
+
+# Dataset documentation (contains business logic)
+data_lake/curated/DATASET_CONTEXT.md
+data_lake/curated/*.md
+
+# =========================
+# Keep These Files
+# =========================
+# Documentation
+!README.md
+!CLAUDE.md
+!BEDROT_ECOSYSTEM_ANALYSIS.md
+!BEDROT_DATA_LAKE_DESIGN_v1.2.md
+!BEDROT_Repository_Analysis.md
+!**/README.md
+!**/CHANGELOG.md
+!changelog-*.md
+
+# Configuration examples
+!.env.example
+!config.example.json
+!settings.example.json
+
+# GitHub workflows
+!.github/workflows/*.yml
+
+# License and contributing
+!LICENSE
+!CONTRIBUTING.md
+
+# Architecture diagrams
+!docs/diagrams/*.png
+!docs/diagrams/*.svg
+
+# Test fixtures (sanitized)
+!tests/fixtures/*.json
+!tests/fixtures/*.csv

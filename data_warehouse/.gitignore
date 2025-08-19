@@ -8,11 +8,6 @@ __pycache__/
 venv/
 ENV/
 
-# SQLite database files
-*.db
-*.sqlite
-*.sqlite3
-
 # Distribution / packaging
 dist/
 build/
@@ -21,13 +16,6 @@ build/
 # Logs
 logs/
 *.log
-
-# Data files that might contain sensitive information
-*.csv
-*.xlsx
-*.xls
-*.json
-/data_lake/
 
 # Local environment settings
 .env
@@ -39,3 +27,17 @@ logs/
 .vscode/
 *.swp
 .DS_Store
+
+# Data files that might contain sensitive information
+# Allow CSVs in curated folder but exclude elsewhere
+*.csv
+*.xlsx
+*.xls
+*.json
+
+# But include all files in curated folder
+!/curated/
+!/curated/*
+
+# Exclude data_lake folder
+/data_lake/
