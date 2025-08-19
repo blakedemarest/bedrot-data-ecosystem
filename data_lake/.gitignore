@@ -1,0 +1,190 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Playwright browsers and user data
+/ms-playwright/
+/playwright/.cache/
+/playwright/.browsers/
+**/playwright/.cache/
+**/playwright/.browsers/
+# Windows default location for Playwright browsers
+C:/Users/*/AppData/Local/ms-playwright/
+# Playwright persistent session directories
+.playwright*
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development
+.DS_Store
+Thumbs.db
+
+# venv
+.venv
+venv/
+
+# IDE specific files
+.idea/
+.vscode/
+# === SENSITIVE DATA PROTECTION ===
+# Ignore all contents of landing/ and raw/ (including all subfolders and files)
+landing/*
+raw/*
+
+
+curated_csvs/*
+# Allow .gitkeep and README.md so folders and docs are preserved
+!landing/.gitkeep
+!raw/.gitkeep
+!landing/README.md
+!raw/README.md
+
+# (existing rules below)
+
+*.swp
+*.swo
+
+# Data files
+*.csv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.db
+*.sqlite3
+
+# ---
+# Exclude all collected data (json, csv, html) in all zones
+landing/**/*.json
+landing/**/*.csv
+landing/**/*.html
+raw/**/*.json
+raw/**/*.csv
+raw/**/*.html
+staging/**/*.json
+staging/**/*.csv
+staging/**/*.html
+curated/**/*.json
+curated/**/*.csv
+curated/**/*.html
+archive/**/*.json
+archive/**/*.csv
+archive/**/*.html
+# ---
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.*
+.env.backup*
+*.env.backup*
+
+
+# Jupyter Lab
+.jupyter/
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Virtual environment
+.env/
+.venv/
+env/
+venv/
+ENV/
+
+# Playwright/ETL session cookies (do not commit browser sessions)
+src/spotify/cookies/
+src/mailchimp/cookies/
+src/instagram/cookies/
+src/youtube/cookies/
+src/linktree/cookies/
+src/distrokid/cookies/
+src/toolost/cookies/
+src/metaads/cookies/
+src/tiktok/cookies/
+src/**/cookies/
+src/common/**/cookies/
+
+# Explicitly ignore all cookie files regardless of location
+**/*cookies*.json
+**/*.cookies.json
+
+# Spyder project settings
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+#Windsurf Rules
+.windsurf
+
+# Local settings files that might contain sensitive data
+**/*.local.json
+.claude/
+**/.claude/
