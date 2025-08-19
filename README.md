@@ -1,6 +1,6 @@
 # BEDROT Data Ecosystem
 
-A production-grade, three-tier analytics infrastructure for the music industry, featuring automated data collection, processing, and real-time visualization across streaming platforms, social media, and advertising channels.
+A production-grade, three-tier analytics infrastructure for BEDROT PRODUCTION's data needs, featuring automated data collection, processing, and real-time visualization across streaming platforms, social media, and advertising channels.
 
 ## Overview
 
