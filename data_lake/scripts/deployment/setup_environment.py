@@ -305,7 +305,7 @@ Automated Cookie Management System
         example_content = """# Cookie Refresh System Environment Variables
 
 # Project Settings
-PROJECT_ROOT=C:\\Users\\Earth\\BEDROT PRODUCTIONS\\bedrot-data-ecosystem\\data_lake
+PROJECT_ROOT=${PROJECT_ROOT}
 COOKIE_REFRESH_LOG_LEVEL=INFO
 COOKIE_REFRESH_CONFIG_FILE=config/cookie_refresh_config.json
 

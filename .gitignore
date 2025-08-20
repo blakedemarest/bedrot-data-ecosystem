@@ -320,9 +320,8 @@ data_lake/curated/*.md
 # GitHub workflows
 !.github/workflows/*.yml
 
-# License and contributing
+# License
 !LICENSE
-!CONTRIBUTING.md
 
 # Architecture diagrams
 !docs/diagrams/*.png
