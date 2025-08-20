@@ -1,0 +1,8 @@
+*.html linguist-generated=true
+data_lake/1_landing/**/*.html linguist-generated=true
+data_lake/2_raw/**/*.html linguist-generated=true
+*.py linguist-detectable=true
+*.ts linguist-detectable=true
+*.tsx linguist-detectable=true
+*.js linguist-detectable=true
+*.jsx linguist-detectable=true

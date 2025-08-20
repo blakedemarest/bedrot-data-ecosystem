@@ -18,6 +18,11 @@ raw/
 staging/
 curated/
 archive/
+data_lake/1_landing/
+data_lake/2_raw/
+data_lake/3_staging/
+data_lake/4_curated/
+data_lake/5_archive/
 
 # Data files
 *.parquet
