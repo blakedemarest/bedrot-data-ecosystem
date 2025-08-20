@@ -322,8 +322,6 @@ data_lake/curated/*.md
 !config.example.json
 !settings.example.json
 
-# GitHub workflows
-!.github/workflows/*.yml
 
 # License
 !LICENSE
