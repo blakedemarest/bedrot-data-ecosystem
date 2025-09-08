@@ -24,44 +24,121 @@ BEDROT Data Ecosystem is a production-grade analytics infrastructure for music i
 - **Data Warehouse** (`data_warehouse/`): SQLite-based analytical database with normalized tables for streaming, financial, and social media metrics  
 - **Data Dashboard** (`data_dashboard/`): Real-time Next.js/FastAPI dashboard displaying 20+ KPIs with live WebSocket updates
 
+## Zone Architecture
+
+### Data Lake Zones
+1. **1_landing/** - Raw data ingestion, timestamped files from extractors
+2. **2_raw/** - Validated, immutable copies in NDJSON/CSV format
+3. **3_staging/** - Cleaned, transformed, standardized data
+4. **4_curated/** - Business-ready datasets for analytics/dashboards
+5. **5_archive/** - Long-term storage (7+ year retention)
+6. **6_automated_cronjob/** - Master pipeline orchestration scripts
+
+### Service Implementation Status
+| Service | Extractors | Cleaners | Priority | Critical Notes |
+|---------|------------|----------|----------|----------------|
+| TooLost | ✅ Multiple variants | ✅ All 3 | CRITICAL | JWT expires every 7 days! |
+| Spotify | ✅ audience_extractor | ✅ All 3 | HIGH | Artists API |
+| TikTok | ✅ 2 accounts | ✅ All 3 | HIGH | zonea0 + pig1987 |
+| DistroKid | ✅ dk_auth | ✅ All 3 | MEDIUM | Streams + financials |
+| Linktree | ✅ analytics_extractor | ✅ All 3 | MEDIUM | GraphQL |
+| MetaAds | ✅ daily_campaigns | ✅ All 3 | LOW | Graph API |
+| Instagram | ❌ Empty dirs | ❌ | - | Not implemented |
+| YouTube | ❌ Empty dirs | ❌ | - | Not implemented |
+| MailChimp | ❌ Empty dirs | ❌ | - | Not implemented |
+
+## Important Context: Semi-Manual Authentication Design
+
+### Authentication Philosophy
+**CRITICAL**: The BEDROT Data Lake operates as a **semi-manual system by design**. This is not a limitation but a deliberate choice for compliance and security:
+
+1. **Extractors NEVER authenticate automatically** - All authentication is handled manually by the user
+2. **2FA Compliance** - All services use two-factor authentication, requiring human interaction
+3. **Cookie Management is Convenience, Not Critical** - Expired cookies mean manual re-authentication, not system failure
+4. **User-Driven Process** - The system respects service terms by requiring explicit user authentication
+
+### Cookie Management Role
+The cookie system exists to **reduce** manual work, not eliminate it:
+- **Storage**: Preserves authentication state between runs
+- **Monitoring**: Warns when cookies are expiring
+- **Refresh Assistance**: Helps guide re-authentication when needed
+- **NOT Critical Infrastructure**: Cookie failures are inconveniences, not emergencies
+
+### Interpreting Cookie-Related Failures
+When you see extraction failures due to cookies:
+1. **This is EXPECTED behavior** - The system is working as designed
+2. **Not a critical error** - Just means manual authentication is needed
+3. **Part of the workflow** - Semi-manual means user intervention is normal
+4. **Compliance-friendly** - Ensures we're not automating around security measures
+
 ## Development Commands
 
-### Data Lake
-
+### Testing
 ```bash
-# Testing
+# Run all tests with coverage
 pytest -ra --cov=src --cov-report=term-missing
-pytest tests/spotify/ -v  # Service-specific tests
 
-# Code Quality
+# Run tests for specific service
+pytest tests/spotify/ -v
+
+# Run cookie refresh tests
+pytest tests/test_cookie_refresh.py -v
+pytest tests/test_integration.py -v
+pytest tests/test_e2e_scenarios.py -v
+```
+
+### Code Quality
+```bash
+# Format code
 black src/
 isort src/
+
+# Lint code  
 flake8 src/
 mypy src/
+```
 
-# Pipeline Execution - RECOMMENDED
-cd data_lake
-run_pipeline_windows.bat  # Full pipeline with all services
-run_pipeline_simple.bat   # Simplified pipeline execution
-# Alternative: Use automated cronjob scripts
-6_automated_cronjob\run_datalake_cron.bat  # Full automated pipeline
-6_automated_cronjob\run_datalake_cron_no_extractors.bat  # Cleaners only
+### Data Pipeline Execution
 
-# Health Monitoring
+#### New Semi-Manual Pipeline with Authentication (Recommended)
+```bash
+# Interactive mode - prompts for manual auth when needed
+cd "C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem\data_lake"
+cronjob\run_bedrot_pipeline.bat
+
+# Automated mode - skips services needing auth
+cronjob\run_bedrot_pipeline.bat --automated
+
+# Alternative with data warehouse ETL
+cronjob\run_pipeline_with_auth.bat
+```
+
+#### Legacy Pipeline Commands
+```bash
+# Run full data lake pipeline (Windows)
+data_lake/cronjob/run_datalake_cron.bat
+
+# Run pipeline without extractors (cleaners only)
+data_lake/cronjob/run_datalake_cron_no_extractors.bat
+
+# Manual Python execution requires PROJECT_ROOT environment variable
+set PROJECT_ROOT=%cd%
+python src/spotify/extractors/spotify_audience_extractor.py
+```
+
+#### Health Monitoring & Diagnostics
+```bash
+# Check pipeline health
 python src\common\pipeline_health_monitor.py
+
+# Check authentication status
 python src\common\run_with_auth_check.py --check-only
 
-# Cookie Management
-python src/common/cookie_refresh/check_status.py
-python src/common/cookie_refresh/manual_refresh.py --service spotify
-python src/common/cookie_refresh/scheduler.py  # Automated refresh
+# Run specific services with auth check
+python src\common\run_with_auth_check.py spotify toolost
 
-# Cookie Refresh System Components
-# Located in src/common/cookie_refresh/
-# - strategies/ - Service-specific refresh implementations
-# - dashboard.py - Web dashboard for cookie status
-# - refresher.py - Main refresh orchestration
-# - notifier.py - Notification system for expiring cookies
+# Test pipeline components
+python test_pipeline_components.py
 ```
 
 ### Data Dashboard
@@ -144,11 +221,12 @@ landing/ → raw/ → staging/ → curated/ → archive/
 ### Service-Specific Expiration
 | Service | Max Age | Refresh Interval | Strategy | 2FA |
 |---------|---------|------------------|----------|-----|
-| Spotify | 30 days | 7 days | OAuth | No |
-| TikTok | 30 days | 7 days | Playwright | Yes |
-| DistroKid | 12 days | 10 days | JWT | No |
-| TooLost | 7 days | 5 days | JWT | No |
-| Linktree | 30 days | 14 days | Playwright | No |
+| TooLost | 7 days | 5 days | JWT Manual | No |
+| Spotify | 30 days | 7 days | OAuth Manual | No |
+| TikTok Zone A0 | 30 days | 7 days | QR/Manual | Yes |
+| TikTok PIG1987 | 30 days | 7 days | QR/Manual | Yes |
+| DistroKid | 90 days | 10 days | Automated | No |
+| Linktree | 30 days | 14 days | Standard | No |
 | MetaAds | 60 days | 30 days | OAuth | No |
 
 ### Cookie Management
@@ -258,22 +336,72 @@ socket.on('connection:status', (status) => { /* Connected/Disconnected */ })
 - Use HTTPS for all external APIs
 - Implement authentication for dashboard access
 
-## Current Status (August 2025)
+## Current Status (September 2025)
 
 ### Pipeline Health
 - **Working**: Check current status with `python src/common/pipeline_health_monitor.py`
 - **Cookie Status**: Monitor with `python src/common/cookie_refresh/check_status.py`
 - **Dashboard**: View at http://localhost:8080 via `python src/common/cookie_refresh/start_dashboard.py`
 
-### Recent Changes (August 2025)
-- Enhanced cookie refresh system with service-specific strategies
-- Automated cronjob scripts in `6_automated_cronjob/` directory
-- Improved pipeline execution with simplified batch files
-- Added comprehensive monitoring and health check tools
-- **Reinitialized data_warehouse and data_dashboard** (clean slate, preserved requirements/venv)
-- **Updated .env configuration** to match data_lake pattern with absolute paths
+### Recent Changes (September 2025)
+- Fixed TikTok zone.a0 date range selector to properly select 365 days
+- Updated TikTok HTML selectors to match current UI structure
+- Fixed browser profile conflicts between TikTok accounts
+- Improved download button selectors for TikTok analytics
+- Fixed MetaAds cleaner nlargest() syntax error
 
 ### Known Issues
 - TooLost JWT expires every 7 days
+- TikTok zone.a0 downloads may still show limited data (account limitation)
 - Some services have data stuck in landing/raw zones
 - Need weekly reminder for TooLost refresh
+
+## Understanding Log Outputs
+
+### Log File Locations
+The data pipeline generates several types of logs in the `logs/` directory:
+
+1. **Pipeline Execution Logs** (`pipeline_YYYYMMDD_HHMM.log`)
+   - Main pipeline execution log from cron job runs
+   - Contains step-by-step execution details
+   - Includes cookie checks, extractor runs, cleaner runs, and health reports
+
+2. **Pipeline Executor Logs** (Enhanced logging as of 2025-07-15)
+   - `pipeline_executor.log` - Detailed execution log with timestamps
+   - `pipeline_executor_errors.log` - Error-only log for quick debugging
+   - `pipeline_executor_structured.jsonl` - JSON-formatted logs for programmatic parsing
+
+3. **Service-Specific Logs**
+   - `cookie_refresh.log` - Cookie refresh operations
+   - `bedrot_pipeline.log` - Semi-manual pipeline runs
+   - `bedrot_pipeline_errors.log` - Error-only view
+
+### Common Error Resolutions
+
+| Error Pattern | Likely Cause | Resolution | Severity |
+|--------------|--------------|------------|----------|
+| `TimeoutError: Page.wait_for_selector` | Page didn't load or login required | Run manual auth - this is NORMAL | Low |
+| `No cookies found` | Missing authentication | Run extractor manually to login | Low |
+| `Multiple extraction failures` | Cookies expired across services | Batch re-authenticate all services | Low |
+| `attempted relative import` | Script run incorrectly | Use proper execution method | High |
+| `no healthy upstream` | Network/proxy issue | Check network, disable proxy | High |
+| `STALE data` | Extraction hasn't run recently | Run specific extractor with auth | Medium |
+
+### Understanding Failure Severity
+
+**Low Severity (Cookie/Auth Issues)**:
+- Expected in semi-manual system
+- Requires user intervention
+- Not a system failure
+- Part of normal workflow
+
+**High Severity (System Issues)**:
+- Actual infrastructure problems
+- Code/configuration errors
+- Network connectivity issues
+- These need immediate fixing
+
+**Medium Severity (Data Issues)**:
+- Data quality concerns
+- Processing bottlenecks
+- May indicate auth OR system issues

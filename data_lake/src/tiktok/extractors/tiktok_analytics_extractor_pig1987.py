@@ -2,11 +2,18 @@
 # landing zone. Uses account-specific cookies for authentication.
 
 import os
+import sys
 import time
-from common.extractors.tiktok_shared import run_extraction
 from pathlib import Path
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
+
+# Add the src directory to the Python path
+src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
+from common.extractors.tiktok_shared import run_extraction
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +46,7 @@ def process_account_manual_persistent(playwright):
         marker_path=marker_path,
         capture_followers=True,
         artist_name="pig1987",
+        date_range_days=365,  # Extract full year of data
     )
     return result
 

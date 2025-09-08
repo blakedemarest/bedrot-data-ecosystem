@@ -256,9 +256,11 @@ elif 'date_start' in df.columns:
 # Campaign summary if available
 if 'campaign_name' in df.columns:
     print(f"\nUnique Campaigns: {df['campaign_name'].nunique()}")
-    top_campaigns = df.groupby('campaign_name')['spend_usd'].sum().nlargest(5)
+    top_campaigns = df.groupby('campaign_name')['spend_usd'].sum().nlargest(5).reset_index()
     print("\nTop 5 Campaigns by Spend:")
-    for campaign, spend in top_campaigns.items():
+    for _, row in top_campaigns.iterrows():
+        campaign = row['campaign_name']
+        spend = row['spend_usd']
         print(f"  - {campaign}: ${spend:,.2f}")
 
 print("\n" + "=" * 80)

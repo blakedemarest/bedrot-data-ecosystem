@@ -14,7 +14,7 @@ if not PROJECT_ROOT:
     raise EnvironmentError("PROJECT_ROOT environment variable must be set.")
 OUTPUT_DIR = Path(PROJECT_ROOT) / '1_landing' / 'tiktok' / 'analytics'
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-DEFAULT_SESSION_DIR = str(Path(PROJECT_ROOT) / 'src' / '.playwright_dk_session')
+DEFAULT_SESSION_DIR = str(Path(PROJECT_ROOT) / 'src' / '.playwright_dk_session_zonea0')
 PLAYWRIGHT_SESSION_DIR = os.getenv('PLAYWRIGHT_SESSION_DIR', DEFAULT_SESSION_DIR)
 
 ACCOUNTS = [
@@ -108,6 +108,7 @@ def process_account_manual_persistent(playwright):
         marker_path=marker_path,
         capture_followers=True,
         artist_name="zone.a0",
+        date_range_days=365,  # Extract full year of data
     )
     return result
 
