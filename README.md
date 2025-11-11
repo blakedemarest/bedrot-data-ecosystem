@@ -6,7 +6,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-3-brightgreen)](https://www.sqlite.org/)
 
-A production-grade, three-tier analytics infrastructure demonstrating end-to-end data engineering capabilities. This portfolio project showcases automated ETL pipelines, real-time data processing, and interactive visualization across 15+ data sources.
+A production-grade, three-tier analytics infrastructure for BEDROT PRODUCTIONS. This portfolio project showcases automated ETL pipelines, real-time data processing, and interactive visualization across 15+ data sources.
 
 ## Project Overview
 
