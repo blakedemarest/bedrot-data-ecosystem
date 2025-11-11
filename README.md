@@ -177,7 +177,7 @@ Access the dashboard at http://localhost:3000
 - **Export Capabilities**: CSV export, Power BI integration, custom reporting
 
 ### 🤖 AI & Automation
-- **Agent-Ready**: Comprehensive CLAUDE.md documentation network
+- **Agent-Ready**: Comprehensive AGENTS.md documentation network
 - **Self-Discovery**: Automatic detection of new data sources and pipelines
 - **Orchestration**: Cron-based automation with dependency management
 - **Monitoring**: Health checks, performance metrics, data quality alerts
