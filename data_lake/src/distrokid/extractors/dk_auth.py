@@ -25,9 +25,25 @@ SESSION_DIR = os.getenv("PLAYWRIGHT_SESSION_DIR", DEFAULT_SESSION_DIR)
 LOGIN_URL = "https://distrokid.com/login"
 DASHBOARD_URL = "https://distrokid.com/stats/?data=streams"
 
-# Get credentials from environment variables
-DK_EMAIL = os.getenv("DK_EMAIL")
-DK_PASSWORD = os.getenv("DK_PASSWORD")
+# Credential resolution helpers
+CREDENTIAL_FALLBACKS = {
+    "email": ("DK_EMAIL", "DISTROKID_EMAIL", "DISTROKID_USERNAME"),
+    "password": ("DK_PASSWORD", "DISTROKID_PASSWORD"),
+}
+
+
+def _resolve_credential(kind: str):
+    """Return the first populated environment variable for the requested credential."""
+    for env_key in CREDENTIAL_FALLBACKS[kind]:
+        value = os.getenv(env_key)
+        if value:
+            logging.debug("Using %s for DistroKid %s", env_key, kind)
+            return value, env_key
+    return None, None
+
+
+DK_EMAIL, DK_EMAIL_ENV = _resolve_credential("email")
+DK_PASSWORD, DK_PASSWORD_ENV = _resolve_credential("password")
 
 
 def _launch_context(p):
@@ -105,8 +121,18 @@ def login_distrokid():
     /// code manually in the browser.
     """
     if not DK_EMAIL or not DK_PASSWORD:
-        logging.error("DK_EMAIL and DK_PASSWORD must be set in environment variables or .env file.")
+        missing = []
+        if not DK_EMAIL:
+            missing.append("DK_EMAIL / DISTROKID_EMAIL / DISTROKID_USERNAME")
+        if not DK_PASSWORD:
+            missing.append("DK_PASSWORD / DISTROKID_PASSWORD")
+        logging.error("Missing required environment variables for DistroKid login: %s", '; '.join(missing))
         return False
+
+    if DK_EMAIL_ENV:
+        logging.info("Using %s for DistroKid email credential", DK_EMAIL_ENV)
+    if DK_PASSWORD_ENV:
+        logging.info("Using %s for DistroKid password credential", DK_PASSWORD_ENV)
 
     with sync_playwright() as p:
         try:

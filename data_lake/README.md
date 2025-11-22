@@ -11,7 +11,7 @@ The BEDROT Data Lake is a production-grade, multi-zone ETL platform that ingests
 - **Data Quality**: SHA-256 deduplication, schema validation, business rule enforcement
 - **AI-Ready**: Comprehensive documentation for autonomous agent operations
 
-For full architectural diagrams and technical deep-dive, see: `docs/BEDROT_Repository_Analysis.md`
+For full architectural diagrams and technical deep-dive, see the docs index in `docs/README.md`.
 
 ## 📁 Data Lake Architecture
 
@@ -355,10 +355,10 @@ See `BEDROT_Data_Lake_Analysis.md` for class diagrams and technical details.
 2. **Automated Pipeline**
    ```bash
    # Full pipeline (Windows)
-   cronjob/run_datalake_cron.bat
+   6_automated_cronjob/run_datalake_cron.bat
    
    # Cleaners only
-   cronjob/run_datalake_cron_no_extractors.bat
+   6_automated_cronjob/run_datalake_cron_no_extractors.bat
    ```
 
 ### Data Flow Verification

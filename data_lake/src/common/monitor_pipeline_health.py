@@ -383,7 +383,7 @@ class PipelineMonitor:
         if stale_services:
             report_lines.append("\n2. Run extractors for services with stale data:")
             report_lines.append("   cd data_lake")
-            report_lines.append("   cronjob/run_datalake_cron.bat")
+            report_lines.append("   6_automated_cronjob/run_datalake_cron.bat")
         
         if self.report.get("toolost_specific", {}).get("directory_mismatch"):
             report_lines.append("\n3. Fix TooLost directory mismatch:")

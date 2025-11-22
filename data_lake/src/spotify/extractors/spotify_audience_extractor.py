@@ -23,6 +23,7 @@ import argparse
 import os
 import sys
 import time
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -106,7 +107,7 @@ def _login_if_needed(page, artist_url: str) -> None:
         print("[ACTION REQUIRED] Please log in to Spotify for Artists (2-FA if prompted)…")
         
         # Auto-fill email if environment variable is set
-        spotify_email = os.environ.get("SPOTIFY_FOR_ARTISTS_EMAIL")
+        spotify_email = os.environ.get("SPOTIFY_FOR_ARTISTS_EMAIL") or os.environ.get("SPOTIFY_EMAIL")
         if spotify_email:
             try:
                 # Wait for login form to be present
@@ -143,83 +144,95 @@ def _login_if_needed(page, artist_url: str) -> None:
 
 
 def _apply_12_month_filter(page):
-    """Open the filter chip, pick 12-month option, click Done."""
-    print("[INFO] Opening filter chip…")
+    """Ensure the audience chart is filtered to the last 12 months."""
+    print("[INFO] Opening filter controls…")
     _click(page, FILTER_CHIP_SELECTOR, desc="Filters chip")
+    page.wait_for_timeout(1000)
 
-    # Wait for the filter dialog to fully open
-    time.sleep(2)
-    
-    # Check if 12 months is already selected by looking for the indicator
+    twelve_months_selected = False
+
+    # Try accessible radio buttons first
     try:
-        if page.locator("span.Indicator-sc-hjfusp-0.iJxqnl").is_visible():
-            print("[INFO] 12 months filter already selected (indicator present)")
-    except:
-        # If not selected, try to click the 12 months option
-        page.wait_for_selector(FILTER_12M_LABEL, state="attached")
-        # Give time for animations
-        time.sleep(1)
-        
-        # Some times the option becomes visible slightly later
-        _click(page, FILTER_12M_LABEL, desc="12-month label", retries=5)
-    
-    # Wait for page state to update after selection
-    time.sleep(2)
-    
-    # Try multiple strategies for the Done button
-    done_clicked = False
-    
-    # Strategy 1: Look for exact Done button
-    for attempt in range(3):
-        try:
-            if page.locator("button:has-text('Done')").first.is_visible():
-                page.locator("button:has-text('Done')").first.click()
-                print("[INFO] Clicked Done button (strategy 1)")
-                done_clicked = True
-                break
-        except Exception as e:
-            print(f"[DEBUG] Done button strategy 1 attempt {attempt + 1} failed: {e}")
-            time.sleep(1)
-    
-    # Strategy 2: Look for span with Done text
-    if not done_clicked:
-        for attempt in range(3):
+        radio_option = page.get_by_role("radio", name=re.compile(r"12\s*months", re.IGNORECASE))
+        radio_option.first.wait_for(state="visible", timeout=4000)
+        radio_option.first.check(force=True)
+        twelve_months_selected = True
+        print("[INFO] Selected 12-month radio option")
+    except Exception:
+        pass
+
+    if not twelve_months_selected:
+        option_selectors = [
+            "label:has-text('Last 12 months')",
+            "label:has-text('12 months')",
+            "button:has-text('Last 12 months')",
+            "button:has-text('12 months')",
+            "[role='option']:has-text('12 months')",
+            "[role='menuitem']:has-text('12 months')",
+        ]
+        for selector in option_selectors:
+            locator = page.locator(selector).first
             try:
-                if page.locator("span:has-text('Done')").first.is_visible():
-                    page.locator("span:has-text('Done')").first.click()
-                    print("[INFO] Clicked Done button (strategy 2)")
-                    done_clicked = True
-                    break
-            except Exception as e:
-                print(f"[DEBUG] Done button strategy 2 attempt {attempt + 1} failed: {e}")
-                time.sleep(1)
-    
-    # Strategy 3: Press Escape key to close dialog
-    if not done_clicked:
+                locator.wait_for(state="visible", timeout=4000)
+                locator.click(force=True)
+                twelve_months_selected = True
+                print(f"[INFO] Selected 12-month option via {selector}")
+                break
+            except Exception:
+                continue
+
+    if not twelve_months_selected:
+        raise RuntimeError("Unable to locate 12-month time range option in Spotify filters")
+
+    page.wait_for_timeout(800)
+
+    dismiss_selectors = [
+        "button:has-text('Done')",
+        "button:has-text('Apply')",
+        "button:has-text('Update')",
+    ]
+    dismissed = False
+    for selector in dismiss_selectors:
+        locator = page.locator(selector).first
+        try:
+            locator.wait_for(state="visible", timeout=2000)
+            locator.click()
+            print(f"[INFO] Closed filter panel via {selector}")
+            dismissed = True
+            break
+        except Exception:
+            continue
+
+    if not dismissed:
         try:
             page.keyboard.press("Escape")
-            print("[INFO] Pressed Escape to close filter dialog")
-            done_clicked = True
-        except Exception as e:
-            print(f"[DEBUG] Escape key strategy failed: {e}")
-    
-    if not done_clicked:
-        print("[WARN] Could not close filter dialog, but proceeding to check for CSV button")
-    
-    # Wait for filter to be applied and CSV button to be available
-    for attempt in range(10):
-        try:
-            if page.locator(CSV_DOWNLOAD_BUTTON).first.is_visible():
-                print("[INFO] CSV download button is visible - filter likely applied")
-                break
+            print("[INFO] Dismissed filter panel with Escape")
         except Exception:
-            pass
-        time.sleep(1)
-        print(f"[DEBUG] Waiting for CSV button, attempt {attempt + 1}/10")
-    
-    # Final check
+            print("[WARN] Could not find explicit close control for filters")
+
+    summary_selectors = [
+        "text='Last 12 months'",
+        "text='12 months'",
+    ]
+    summary_confirmed = False
+    for attempt in range(6):
+        for selector in summary_selectors:
+            locator = page.locator(selector).first
+            try:
+                locator.wait_for(state="visible", timeout=200)
+                summary_confirmed = True
+                print("[INFO] Confirmed 12-month time range is active")
+                break
+            except Exception:
+                continue
+        if summary_confirmed:
+            break
+        page.wait_for_timeout(800)
+    if not summary_confirmed:
+        print("[WARN] Could not confirm 12-month time range; continuing anyway")
+
     page.wait_for_selector(CSV_DOWNLOAD_BUTTON)
-    print("[INFO] 12-month filter applied (CSV button visible).")
+
 
 
 def _download_csv(page, artist_id: str) -> Path:

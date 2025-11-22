@@ -40,33 +40,31 @@ python src/common/run_with_auth_check.py toolost spotify --manual
 cd data_lake
 set PYTHONPATH=%CD%\src;%PYTHONPATH%
 python src/common/run_with_auth_check.py
-cronjob/run_datalake_cron_no_extractors.bat
+6_automated_cronjob/run_datalake_cron_no_extractors.bat
 
 # Traditional method (may fail if cookies expired)
-cronjob/run_datalake_cron.bat
+6_automated_cronjob/run_datalake_cron.bat
 ```
 
 ## Service-Specific Instructions
 
 ### TooLost
 
-**Unified Extractor** (Recommended):
+**Recommended Flow (matches main cron)**:
 ```bash
-# Automatic mode detection
-python src/toolost/extractors/toolost_unified_extractor.py
+# Interactive auth + extraction for all services (including TooLost)
+python src/common/run_with_auth_check.py
 
-# Force manual login
-python src/toolost/extractors/toolost_unified_extractor.py --manual
+# Run TooLost extractor only
+python src/common/run_with_auth_check.py --services toolost
 
-# Run headless (automated only)
-python src/toolost/extractors/toolost_unified_extractor.py --headless
+# Direct extractor invocation (without wrapper)
+python src/toolost/extractors/toolost_scraper.py
 ```
 
-**Important**: The unified extractor:
-- Automatically detects if manual login is needed
-- Saves data to `landing/toolost/` (standardized location)
-- Supports both manual and automated modes
-- Cookie expiration: 7 days
+**Important**:
+- The TooLost extractor uses the same cookie and path conventions as the main pipeline.
+- `toolost_raw2staging.py` already handles both historical (`raw/toolost/streams`) and new (`raw/toolost/`) locations, so no separate “fixed” cleaner is required.
 
 ### Spotify
 
@@ -168,8 +166,8 @@ For Linux/WSL environments:
    - Try manual mode to debug: `--manual` flag
 
 3. **"Directory mismatch" (TooLost specific)**
-   - Use the fixed cleaner: `python src/toolost/cleaners/toolost_raw2staging_fixed.py`
-   - Or rename the original and use the fixed version
+   - Use the standard cleaner: `python src/toolost/cleaners/toolost_raw2staging.py`
+   - This script already checks both `raw/toolost/streams` and `raw/toolost/` for JSON files
 
 ### Cookie Management
 

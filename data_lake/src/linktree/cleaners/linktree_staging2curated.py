@@ -1,6 +1,6 @@
-"""
+﻿"""
 /// linktree_staging2curated.py
-/// Staging → Curated cleaner for Linktree analytics.
+/// Staging -> Curated cleaner for Linktree analytics.
 ///
 /// Guided by `LLM_cleaner_guidelines.md`.
 /// Reads **CSV** from staging, writes **CSV and Parquet** to curated.
@@ -57,7 +57,7 @@ def load_staging(files: list[Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 def main():
-    parser = argparse.ArgumentParser(description="Linktree Staging→Curated cleaner")
+    parser = argparse.ArgumentParser(description="Linktree Staging->Curated cleaner")
     parser.add_argument("--input", help="Specific staging CSV file", default=None)
     args = parser.parse_args()
 

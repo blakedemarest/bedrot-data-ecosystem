@@ -23,9 +23,9 @@ The cookie refresh automation system is now **FULLY IMPLEMENTED** and production
    - Handles all initialization issues
    - Production-ready error handling
 
-3. **Batch Files for Windows**
-   - `cronjob/cookie_check.bat` - Quick status check
-   - `cronjob/cookie_refresh_auto.bat` - Automated refresh
+3. **Batch Files for Windows (planned)**
+   - `cronjob/cookie_check.bat` - Quick status check *(not created; use Python CLI instead)*
+   - `cronjob/cookie_refresh_auto.bat` - Automated refresh *(not created; use Python CLI instead)*
    - `setup_cookie_refresh.bat` - One-time setup
 
 ## 🚀 Quick Start
@@ -33,14 +33,10 @@ The cookie refresh automation system is now **FULLY IMPLEMENTED** and production
 ### 1. Initial Setup (One Time Only)
 ```batch
 cd "C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem\data_lake"
-setup_cookie_refresh.bat
+python cookie_refresh.py --help
 ```
 
 ### 2. Check Cookie Status
-```batch
-cronjob\cookie_check.bat
-```
-Or directly:
 ```batch
 python cookie_refresh.py --check
 ```
@@ -100,12 +96,13 @@ if errorlevel 1 (
 
 ## 🗓️ Scheduling Automated Refresh
 
-### Windows Task Scheduler:
+### Windows Task Scheduler (using Python CLI):
 1. Open Task Scheduler
 2. Create Basic Task: "BEDROT Cookie Refresh"
 3. Trigger: Daily at 9 AM
 4. Action: Start a program
-5. Program: `C:\path\to\data_lake\cronjob\cookie_refresh_auto.bat`
+5. Program: `C:\path\to\data_lake\python.exe`
+6. Arguments: `cookie_refresh.py --refresh-all`
 6. Start in: `C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem\data_lake`
 
 ## 🔍 Troubleshooting

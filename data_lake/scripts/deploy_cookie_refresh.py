@@ -309,7 +309,7 @@ def integrate_with_pipeline():
     print("\n8. Integrating with Pipeline...")
     
     project_root = Path(os.environ.get('PROJECT_ROOT', '.'))
-    pipeline_script = project_root / 'cronjob' / 'run_bedrot_pipeline.bat'
+    pipeline_script = project_root / '6_automated_cronjob' / 'run_datalake_cron.bat'
     
     if pipeline_script.exists():
         # Read current content
@@ -374,10 +374,10 @@ def print_summary(cookie_status):
     print(f"   {Colors.BLUE}python scripts/test_cookie_refresh.py{Colors.ENDC}")
     
     print("\n2. Check cookie status:")
-    print(f"   {Colors.BLUE}cronjob\\refresh_cookies.bat{Colors.ENDC}")
+    print(f"   {Colors.BLUE}python cookie_refresh.py --check{Colors.ENDC}")
     
     print("\n3. Run full pipeline with cookie refresh:")
-    print(f"   {Colors.BLUE}cronjob\\run_bedrot_pipeline.bat{Colors.ENDC}")
+    print(f"   {Colors.BLUE}6_automated_cronjob\\run_datalake_cron.bat{Colors.ENDC}")
     
     if any(status in ['expired', 'missing'] for status in cookie_status.values()):
         print("\n⚠️  Some cookies need attention:")

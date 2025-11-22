@@ -1,6 +1,6 @@
-"""
+﻿"""
 /// linktree_raw2staging.py
-/// Raw → Staging cleaner for Linktree NDJSON data.
+/// Raw -> Staging cleaner for Linktree NDJSON data.
 ///
 /// Guided by `LLM_cleaner_guidelines.md`.
 /// • Reads every *.ndjson in raw/linktree/
@@ -61,9 +61,9 @@ def extract_timeseries_rows(obj: dict) -> list[dict]:
     /// 1. Object **already** represents a flattened row (has top-level
     ///    "date"). Return [obj].
     /// 2. Object is a full GraphQL payload with structure
-    ///    data→getAccountAnalytics→overview→timeseries. Return list of
+    ///    data->getAccountAnalytics->overview->timeseries. Return list of
     ///    flattened dicts extracted from the timeseries array.
-    /// 3. Any other structure → returns empty list.
+    /// 3. Any other structure -> returns empty list.
     """
     # Case 1 – already flattened
     if "date" in obj:
@@ -118,7 +118,7 @@ def build_dataframe(files: list[Path]) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Linktree Raw→Staging cleaner (CSV)")
+    parser = argparse.ArgumentParser(description="Linktree Raw->Staging cleaner (CSV)")
     parser.add_argument("--out", help="Custom CSV output path", default=None)
     args = parser.parse_args()
 

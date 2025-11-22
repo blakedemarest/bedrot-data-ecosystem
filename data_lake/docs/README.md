@@ -8,10 +8,10 @@ This directory contains all documentation for the BEDROT Data Lake system.
 - [README.md](../README.md) - Main project documentation
 - [CLAUDE.md](../CLAUDE.md) - AI assistant guidelines
 - [changelog.md](../changelog.md) - Version history and changes
+- [ZONES_AND_ENV_VARS.md](ZONES_AND_ENV_VARS.md) - Canonical zones and environment variable configuration
 
 ### Architecture & Design
 - [database_design_report.md](database_design_report.md) - Database schema and design decisions
-- [BEDROT_Repository_Analysis.md](BEDROT_Repository_Analysis.md) - Complete repository analysis
 - [SERVICE_URL_REQUIREMENTS.md](SERVICE_URL_REQUIREMENTS.md) - Service integration requirements
 
 ### Cookie & Authentication System
@@ -27,7 +27,6 @@ This directory contains all documentation for the BEDROT Data Lake system.
 
 ### Development & Planning
 - [CODEBASE_TODO.md](CODEBASE_TODO.md) - Development tasks and roadmap
-- [CLAUDE_DOCUMENTATION_SUMMARY.md](CLAUDE_DOCUMENTATION_SUMMARY.md) - Documentation overview for AI
 
 ### Reports & Analytics
 - [pipeline_health_report.html](pipeline_health_report.html) - Latest pipeline health report (HTML)

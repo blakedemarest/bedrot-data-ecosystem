@@ -86,7 +86,6 @@ Extract music streaming analytics via JWT API
 
 ### Extractor Files
 - `src/toolost/extractors/toolost_scraper.py`
-- `src/toolost/extractors/toolost_scraper_cron.py`
 
 ---
 

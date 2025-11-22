@@ -1,4 +1,4 @@
-# Captures Linktree analytics via Playwright and writes JSON responses to the
+﻿# Captures Linktree analytics via Playwright and writes JSON responses to the
 # landing zone. Requires manual login on first run.
 
 import os
@@ -8,21 +8,28 @@ from pathlib import Path
 from datetime import datetime
 
 # Patch sys.path so 'from common.cookies' works for direct execution
-PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
-if not PROJECT_ROOT:
+
+PROJECT_ROOT_ENV = os.environ.get('PROJECT_ROOT')
+if not PROJECT_ROOT_ENV:
     raise EnvironmentError("PROJECT_ROOT environment variable must be set.")
-SRC_PATH = str(Path(PROJECT_ROOT) / 'src')
+PROJECT_ROOT = Path(PROJECT_ROOT_ENV)
+SRC_PATH = str(PROJECT_ROOT / 'src')
 if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from common.cookies import load_cookies  # unified cookie/session helper
 
+
+def resolve_zone_path(env_var: str, default: str) -> Path:
+    value = os.environ.get(env_var, default)
+    zone_path = Path(value)
+    if not zone_path.is_absolute():
+        zone_path = PROJECT_ROOT / zone_path
+    return zone_path
+
 # Output directory
-PROJECT_ROOT = os.environ.get('PROJECT_ROOT')
-if not PROJECT_ROOT:
-    raise EnvironmentError("PROJECT_ROOT environment variable must be set.")
-OUTPUT_DIR = Path(PROJECT_ROOT) / '1_landing' / 'linktree' / 'analytics'
+OUTPUT_DIR = resolve_zone_path('LANDING_ZONE', '1_landing') / 'linktree' / 'analytics'
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def _click_with_retry(page, selector: str, retries: int = 3, wait_state="visible"):
@@ -40,6 +47,18 @@ def _click_with_retry(page, selector: str, retries: int = 3, wait_state="visible
     raise RuntimeError(f"Failed to click '{selector}' after {retries} retries")
 
 
+
+def _wait_for_any_selector(page, selectors, timeout=15000):
+    per_selector_timeout = max(timeout // max(len(selectors), 1), 3000)
+    for selector, description in selectors:
+        try:
+            page.wait_for_selector(selector, timeout=per_selector_timeout)
+            return description
+        except PlaywrightTimeoutError:
+            continue
+    return None
+
+
 def _setup_browser(p):
     browser = p.chromium.launch(headless=False)
     context = browser.new_context()
@@ -48,37 +67,44 @@ def _setup_browser(p):
     return browser, context, page
 
 
+
 def _await_dashboard(page):
     print("[INFO] Navigating to https://linktr.ee/admin/analytics ...")
     page.goto("https://linktr.ee/admin/analytics", wait_until="domcontentloaded")
+
+    wait_timeout = 15000
     try:
         page.wait_for_selector('nav[role="navigation"]', timeout=5000)
-        print("[INFO] Admin navigation bar detected → likely authenticated.")
+        print("[INFO] Admin navigation bar detected - likely authenticated.")
     except PlaywrightTimeoutError:
-        print("[ACTION REQUIRED] Please log in – waiting for analytics dashboard to load...")
-        
-        # Auto-fill username if environment variable is set
+        print("[ACTION REQUIRED] Please log in - waiting for analytics dashboard to load...")
+        wait_timeout = 60000
+
         linktree_username = os.environ.get("LINKTREE_USERNAME")
         if linktree_username:
             try:
-                # Wait for the identifier input field
                 page.wait_for_selector("#identifier", timeout=10000)
-                
-                # Fill in the username
                 username_input = page.locator("#identifier")
                 username_input.fill(linktree_username)
                 print(f"[INFO] Auto-filled username: {linktree_username}")
-                
-                # Note: Password requires manual entry for security
                 print("[ACTION REQUIRED] Please enter your password and complete login...")
             except Exception as e:
                 print(f"[WARN] Could not auto-fill username: {e}")
-        
-        try:
-            page.wait_for_selector('text=Insights')
-            print("[INFO] Logged in and analytics dashboard detected.")
-        except KeyboardInterrupt:
-            raise RuntimeError("Interrupted while waiting for login")
+
+    selector_candidates = [
+        # Oct 2025: fallback selectors handle Linktree renaming 'Insights' to 'Analytics'.
+        ('text=Insights', 'Insights badge'),
+        ('text="Analytics"', 'Analytics heading'),
+        ('[data-testid="analytics-dashboard"]', 'analytics dashboard container'),
+        ('section:has-text("Analytics Overview")', 'analytics overview section'),
+    ]
+    matched = _wait_for_any_selector(page, selector_candidates, timeout=wait_timeout)
+    if matched:
+        print(f"[INFO] Analytics dashboard detected via {matched}.")
+    else:
+        raise RuntimeError(
+            "Analytics dashboard did not load within the expected time. Please verify credentials or UI changes."
+        )
 
 
 def _select_last_365_days(page):

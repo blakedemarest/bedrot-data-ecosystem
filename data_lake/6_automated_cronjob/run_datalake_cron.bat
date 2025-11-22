@@ -669,10 +669,10 @@ if %TOTAL_FAILURES% EQU 0 (
 ) else (
     echo   1. IMPORTANT: Review the HTML health report for failure details
     echo   1. IMPORTANT: Review the HTML health report for failure details >> "%LOG_FILE%"
-    echo   2. Check failed services and refresh cookies if needed
-    echo   2. Check failed services and refresh cookies if needed >> "%LOG_FILE%"
-    echo   3. Re-run failed extractors manually using:
-    echo   3. Re-run failed extractors manually using: >> "%LOG_FILE%"
+    echo   2. Check extractor logs for real errors; manual auth reminders are informational only
+    echo   2. Check extractor logs for real errors; manual auth reminders are informational only >> "%LOG_FILE%"
+    echo   3. Re-run failed extractors manually if an actual error was recorded:
+    echo   3. Re-run failed extractors manually if an actual error was recorded: >> "%LOG_FILE%"
     echo      python src\common\run_with_auth_check.py --script [extractor_path]
     echo      python src\common\run_with_auth_check.py --script [extractor_path] >> "%LOG_FILE%"
 )

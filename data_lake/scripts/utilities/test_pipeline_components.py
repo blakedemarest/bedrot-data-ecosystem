@@ -38,7 +38,7 @@ except Exception as e:
 
 # Test 3: Check for required directories
 print("\nTest 3: Checking required directories...")
-required_dirs = ['landing', 'raw', 'staging', 'curated', 'src']
+required_dirs = ['1_landing', '2_raw', '3_staging', '4_curated', 'src']
 for dir_name in required_dirs:
     dir_path = PROJECT_ROOT / dir_name
     if dir_path.exists():
@@ -87,8 +87,8 @@ print(f"Python executable: {sys.executable}")
 # Test 8: Check if we can run batch files
 print("\nTest 8: Batch file checks...")
 batch_files = [
-    '6_automated_cronjob/run_pipeline_with_auth.bat',
-    '6_automated_cronjob/run_bedrot_pipeline.bat'
+    '6_automated_cronjob/run_datalake_cron.bat',
+    '6_automated_cronjob/run_datalake_cron_no_extractors.bat'
 ]
 for batch_file in batch_files:
     batch_path = PROJECT_ROOT / batch_file
@@ -105,9 +105,9 @@ print("="*60)
 print("\nTo run the pipeline:")
 print("1. From Windows Command Prompt:")
 print(f"   cd \"{PROJECT_ROOT}\"")
-print("   6_automated_cronjob\\run_bedrot_pipeline.bat")
-print("\n2. Or use the existing pipeline:")
-print("   6_automated_cronjob\\run_pipeline_with_auth.bat")
+print("   6_automated_cronjob\\run_datalake_cron.bat")
+print("\n2. Cleaners-only pipeline:")
+print("   6_automated_cronjob\\run_datalake_cron_no_extractors.bat")
 print("\nFor testing individual components:")
 print("   python src\\common\\pipeline_health_monitor.py")
 print("   python src\\common\\run_with_auth_check.py --check-only")

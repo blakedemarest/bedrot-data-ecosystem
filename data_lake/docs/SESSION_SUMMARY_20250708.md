@@ -86,7 +86,7 @@ This session focused on resolving critical data pipeline issues, specifically:
 ### Created:
 1. `/data_lake/src/tiktok/cookies/tiktok_cookies_zonea0.json` - Zone A0 cookies
 2. `/data_lake/src/tiktok/manage_cookies.py` - Cookie management utility
-3. `/data_lake/src/common/auth_check_wrapper.py` - Initial auth wrapper (duplicate)
+3. `/data_lake/src/common/run_with_auth_check.py` - Current auth wrapper used by the cron pipeline
 4. `/data_lake/6_automated_cronjob/run_bedrot_pipeline.bat` - New interactive pipeline (Note: File may have been removed or relocated)
 5. `/data_lake/test_pipeline_components.py` - Component testing script
 6. `/data_lake/SESSION_SUMMARY_20250708.md` - This summary
@@ -148,7 +148,7 @@ python src\distrokid\extractors\dk_auth.py
 
 4. **Run full pipeline to catch up**:
    ```bash
-   cronjob\run_bedrot_pipeline.bat
+   6_automated_cronjob\run_datalake_cron.bat
    ```
 
 ### Weekly Maintenance:

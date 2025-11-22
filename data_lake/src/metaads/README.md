@@ -14,9 +14,9 @@ metaads/
 │   ├── pixel_events_extractor.py           # Meta Pixel event aggregation
 │   └── audience_insights_extractor.py      # Detailed audience analytics
 ├── cleaners/
-│   ├── metaads_daily_landing2raw.py        # Daily pipeline: landing to raw
-│   ├── metaads_daily_raw2staging.py        # Daily pipeline: raw to staging
-│   ├── metaads_daily_staging2curated.py    # Daily pipeline: staging to curated
+│   ├── metaads_landing2raw.py              # Landing to raw
+│   ├── metaads_raw2staging.py              # Raw to staging
+│   ├── metaads_staging2curated.py          # Staging to curated
 │   ├── metaads_landing2raw.py              # Legacy pipeline: landing to raw
 │   ├── metaads_raw2staging.py              # Legacy pipeline: raw to staging
 │   └── metaads_staging2curated.py          # Legacy pipeline: staging to curated
@@ -119,7 +119,7 @@ results = dumper.extract_complete_account_data()
 #### Landing to Raw Zone
 ```python
 # Process daily campaign CSV to validated NDJSON
-python src/metaads/cleaners/metaads_daily_landing2raw.py
+python src/metaads/cleaners/metaads_landing2raw.py
 
 # Processing includes:
 # - CSV to NDJSON format conversion
@@ -132,7 +132,7 @@ python src/metaads/cleaners/metaads_daily_landing2raw.py
 #### Raw to Staging Zone
 ```python
 # Convert to staging CSV with enhanced pixel event columns
-python src/metaads/cleaners/metaads_daily_raw2staging.py
+python src/metaads/cleaners/metaads_raw2staging.py
 
 # Transformations include:
 # - NDJSON to structured CSV conversion
@@ -145,7 +145,7 @@ python src/metaads/cleaners/metaads_daily_raw2staging.py
 #### Staging to Curated Zone
 ```python
 # Create dual CSV outputs optimized for analytics
-python src/metaads/cleaners/metaads_daily_staging2curated.py
+python src/metaads/cleaners/metaads_staging2curated.py
 
 # Generates two complementary datasets:
 # 1. Campaign metadata with lifetime statistics
@@ -273,9 +273,9 @@ cd "C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem\data_lake"
 
 # Execute complete daily pipeline
 python src/metaads/extractors/meta_daily_campaigns_extractor.py
-python src/metaads/cleaners/metaads_daily_landing2raw.py
-python src/metaads/cleaners/metaads_daily_raw2staging.py
-python src/metaads/cleaners/metaads_daily_staging2curated.py
+python src/metaads/cleaners/metaads_landing2raw.py
+python src/metaads/cleaners/metaads_raw2staging.py
+python src/metaads/cleaners/metaads_staging2curated.py
 ```
 
 ### Custom Analytics Processing
@@ -470,7 +470,7 @@ python src/metaads/utils/validate_api_responses.py
 python src/metaads/utils/validate_campaign_data.py
 
 # Test processing pipeline
-python src/metaads/cleaners/metaads_daily_raw2staging.py --test-mode
+python src/metaads/cleaners/metaads_raw2staging.py --test-mode
 
 # Check schema compliance
 python src/metaads/utils/schema_validator.py

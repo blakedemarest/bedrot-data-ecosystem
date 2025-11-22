@@ -212,7 +212,7 @@ python src/distrokid/cleaners/distrokid_staging2curated.py
 ```bash
 # Scheduled via Windows Task Scheduler
 # Runs Monday, Wednesday, Friday at 6:00 AM
-# See cronjob/run_datalake_cron.bat for full pipeline
+# See 6_automated_cronjob/run_datalake_cron.bat for full pipeline
 ```
 
 ### Custom Data Processing

@@ -1,5 +1,5 @@
-# %%
-# ─── Cell 1: Imports & Environment Setup ────────────────────────────────────────
+﻿# %%
+# â”€â”€â”€ Cell 1: Imports & Environment Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Process Meta Ads NDJSON files from raw zone and create normalized CSV in staging
 import os
 import json
@@ -8,13 +8,22 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 
+
 load_dotenv()
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
-RAW = PROJECT_ROOT / os.getenv("RAW_ZONE", "2_raw")
-STAGING = PROJECT_ROOT / os.getenv("STAGING_ZONE", "3_staging")
+PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+
+def resolve_zone_path(env_var: str, default: str) -> Path:
+    value = os.getenv(env_var, default)
+    zone_path = Path(value)
+    if not zone_path.is_absolute():
+        zone_path = PROJECT_ROOT / zone_path
+    return zone_path
+
+RAW = resolve_zone_path("RAW_ZONE", "2_raw")
+STAGING = resolve_zone_path("STAGING_ZONE", "3_staging")
 
 # %%
-# ─── Cell 2: Load and Combine NDJSON Files ──────────────────────────────────────
+# â”€â”€â”€ Cell 2: Load and Combine NDJSON Files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 raw_meta = RAW / "metaads"
 staging_meta = STAGING / "metaads"
 staging_meta.mkdir(parents=True, exist_ok=True)
@@ -29,7 +38,7 @@ if not ndjson_files:
 print(f"[INFO] Found {len(ndjson_files)} NDJSON files to process")
 
 # %%
-# ─── Cell 3: Read and Combine Data ───────────────────────────────────────────────
+# â”€â”€â”€ Cell 3: Read and Combine Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 all_data = []
 
 for ndjson_file in sorted(ndjson_files):
@@ -60,7 +69,7 @@ if not all_data:
 print(f"\n[INFO] Total records loaded: {len(all_data)}")
 
 # %%
-# ─── Cell 4: Create DataFrame and Normalize ──────────────────────────────────────
+# â”€â”€â”€ Cell 4: Create DataFrame and Normalize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 df = pd.DataFrame(all_data)
 
 # Remove duplicate columns (keep first occurrence)
@@ -70,7 +79,7 @@ print(f"[INFO] DataFrame shape: {df.shape}")
 print(f"[INFO] Columns: {df.columns.tolist()}")
 
 # %%
-# ─── Cell 5: Data Cleaning and Standardization ───────────────────────────────────
+# â”€â”€â”€ Cell 5: Data Cleaning and Standardization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Standardize column names
 column_mapping = {
     'Amount spent (USD)': 'spend_usd',
@@ -103,7 +112,7 @@ for old_col, new_col in column_mapping.items():
         df.rename(columns={old_col: new_col}, inplace=True)
 
 # %%
-# ─── Cell 6: Type Conversions and Calculations ──────────────────────────────────
+# â”€â”€â”€ Cell 6: Type Conversions and Calculations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Convert numeric columns
 numeric_columns = ['spend_usd', 'impressions', 'reach', 'clicks', 'results', 
                   'cost_per_result', 'bid', 'cpc', 'cpm', 'ctr', 'frequency']
@@ -145,7 +154,7 @@ except:
     pass
 
 # %%
-# ─── Cell 7: Parse Meta Pixel Events ─────────────────────────────────────────────
+# â”€â”€â”€ Cell 7: Parse Meta Pixel Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def parse_pixel_events(events_str):
     """Parse Meta Pixel events from JSON string"""
     if pd.isna(events_str) or events_str == '{}' or not events_str:
@@ -181,7 +190,7 @@ if 'meta_pixel_events' in df.columns:
     df.drop('pixel_events_parsed', axis=1, inplace=True)
 
 # %%
-# ─── Cell 8: Data Quality and Deduplication ──────────────────────────────────────
+# â”€â”€â”€ Cell 8: Data Quality and Deduplication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Remove duplicates based on key columns
 key_columns = []
 if 'date' in df.columns:
@@ -206,7 +215,7 @@ elif 'date_start' in df.columns:
     df = df.sort_values('date_start', ascending=False)
 
 # %%
-# ─── Cell 9: Save to Staging Zone ────────────────────────────────────────────────
+# â”€â”€â”€ Cell 9: Save to Staging Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Save main dataset
 output_file = staging_meta / f"metaads_staging_{datetime.now():%Y%m%d_%H%M%S}.csv"
 df.to_csv(output_file, index=False, encoding='utf-8')
@@ -219,7 +228,7 @@ df.to_csv(latest_file, index=False, encoding='utf-8')
 print(f"[SUCCESS] Also saved as latest: {latest_file}")
 
 # %%
-# ─── Cell 10: Data Summary ───────────────────────────────────────────────────────
+# â”€â”€â”€ Cell 10: Data Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 print("\n" + "=" * 80)
 print("DATA SUMMARY")
 print("=" * 80)
@@ -232,6 +241,7 @@ if 'spend_usd' in df.columns:
         print(f"Total Spend: ${total_spend:,.2f}")
         print(f"Average Daily Spend: ${avg_spend:,.2f}")
     except:
+        pass
         pass
 
 if 'impressions' in df.columns:
@@ -256,11 +266,30 @@ elif 'date_start' in df.columns:
 # Campaign summary if available
 if 'campaign_name' in df.columns:
     print(f"\nUnique Campaigns: {df['campaign_name'].nunique()}")
-    top_campaigns = df.groupby('campaign_name')['spend_usd'].sum().nlargest(5).reset_index()
-    print("\nTop 5 Campaigns by Spend:")
-    for _, row in top_campaigns.iterrows():
-        campaign = row['campaign_name']
-        spend = row['spend_usd']
-        print(f"  - {campaign}: ${spend:,.2f}")
+    if 'spend_usd' in df.columns:
+        # Oct 2025: pandas grouped summary began yielding DataFrame objects; sort manually to avoid nlargest TypeError
+        spend_series = pd.Series(dtype='float64')
+        try:
+            spend_series = (
+                df.groupby('campaign_name', dropna=False)['spend_usd']
+                .sum(min_count=1)
+                .sort_values(ascending=False)
+                .head(5)
+            )
+        except Exception as exc:
+            print(f"[WARN] Unable to build spend summary: {exc}")
+
+        if not spend_series.empty:
+            print("\nTop 5 Campaigns by Spend:")
+            for campaign, spend in spend_series.fillna(0).items():
+                campaign_name = campaign if campaign else "Unnamed Campaign"
+                try:
+                    spend_value = float(spend)
+                except (TypeError, ValueError):
+                    spend_value = 0.0
+                print(f"  - {campaign_name}: ${spend_value:,.2f}")
+    else:
+        print("\nTop 5 Campaigns by Spend: unavailable (missing spend_usd column)")
 
 print("\n" + "=" * 80)
+

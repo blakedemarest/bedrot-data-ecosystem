@@ -79,8 +79,12 @@ def extract_capitol_one_financial_data() -> List[Dict]:
     """Extract financial transactions from Capitol One banking data."""
     transactions = []
     
-    # Look for Capitol One files - use specific filename
-    capitol_files = [CURATED_CSV_PATH / "capitol_one_purchases_7113.csv"]
+    # Look for Capitol One files - support multi-account exports
+    capitol_files = sorted(CURATED_CSV_PATH.glob("capitol_one_purchases*.csv"))
+
+    # Fall back to the data lake curated zone if the warehouse copy isn't present
+    if not capitol_files:
+        capitol_files = sorted((DATA_LAKE_PATH / "4_curated").glob("capitol_one_purchases*.csv"))
     
     for file_path in capitol_files:
         if not file_path.exists():
@@ -93,9 +97,14 @@ def extract_capitol_one_financial_data() -> List[Dict]:
             for _, row in df.iterrows():
                 # Adapt to actual Capitol One CSV structure
                 if pd.notna(row.get('Amount')):
+                    description = row.get('Description', 'Capitol One Transaction')
+                    card_last4 = str(row.get('CardLast4', '')).strip()
+                    if card_last4:
+                        description = f"{description} (Card {card_last4})"
+
                     transaction = {
                         'transaction_date': row.get('Date', '2024-01-01'),
-                        'description': row.get('Description', 'Capitol One Transaction'),
+                        'description': description,
                         'amount': float(row['Amount']),
                         'currency': 'USD',
                         'category': row.get('Category', 'Business Expense'),  # Use actual category from data
@@ -103,7 +112,8 @@ def extract_capitol_one_financial_data() -> List[Dict]:
                         'source_platform': 'Capitol One',
                         'artist_name': None,  # No artist association for bank transactions
                         'track_title': None,
-                        'country': 'US'
+                        'country': 'US',
+                        'card_last4': card_last4 or None,
                     }
                     transactions.append(transaction)
                     

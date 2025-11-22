@@ -39,9 +39,11 @@ Each extractor writes to `landing/<platform>` and each cleaner reads from one zo
    from dotenv import load_dotenv
    from playwright.sync_api import sync_playwright
 
+   from common.zones import get_landing_path
+
    load_dotenv()
    PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
-   OUTPUT_DIR = PROJECT_ROOT / "landing" / "<service>"
+   OUTPUT_DIR = get_landing_path("<service>")
    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
    def run(playwright):
@@ -60,7 +62,7 @@ Each extractor writes to `landing/<platform>` and each cleaner reads from one zo
    - `<service>_staging2curated.py`
 
    Each script should:
-   - Read from `PROJECT_ROOT` paths (e.g., `landing/<service>/`, `raw/<service>/`).
+   - Read from zone helpers (e.g., `get_landing_path("<service>")`, `get_raw_path("<service>")`, `get_staging_path("<service>")`).
    - Use `# %%` cell markers and minimal `print` logging.
    - Provide a CLI (`--file`, `--out`, or `--input` as appropriate).
    - Write UTF‑8 CSV or NDJSON files.
@@ -85,10 +87,12 @@ Each extractor writes to `landing/<platform>` and each cleaner reads from one zo
    from dotenv import load_dotenv
    import requests
 
+   from common.zones import get_landing_path
+
    load_dotenv()
    PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
    API_TOKEN = os.environ.get("EXAMPLEAPI_TOKEN")
-   OUTPUT_DIR = PROJECT_ROOT / "landing" / "exampleapi"
+   OUTPUT_DIR = get_landing_path("exampleapi")
    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
    def run():

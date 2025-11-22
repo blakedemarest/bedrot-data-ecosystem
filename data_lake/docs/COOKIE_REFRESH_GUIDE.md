@@ -106,18 +106,19 @@ services:
 
 ## Integration with Pipeline
 
-The cookie refresh system is integrated into the main pipeline:
+The cookie refresh system is designed to run alongside the main pipeline rather than being hard-wired into a specific batch file.
 
 ```bash
-# Run full pipeline with cookie checks
-cronjob\run_bedrot_pipeline.bat
+# Run full pipeline (Windows)
+6_automated_cronjob\run_datalake_cron.bat
+
+# Check cookie status before or after a run
+python cookie_refresh.py --check
 ```
 
-The pipeline will:
-1. Check authentication status
-2. Check cookie expiration
-3. Prompt for refresh if needed
-4. Continue with data extraction
+Typical flow:
+1. Run `python cookie_refresh.py --check` and refresh any expiring cookies.
+2. Run `6_automated_cronjob\run_datalake_cron.bat` or the `run_with_auth_check.py` wrapper.
 
 ## Manual Cookie Management
 

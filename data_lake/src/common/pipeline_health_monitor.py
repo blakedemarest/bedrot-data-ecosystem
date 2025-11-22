@@ -77,14 +77,34 @@ class ServicePriority(Enum):
 class PipelineHealthMonitor:
     """Active pipeline health management system."""
     
-    def __init__(self, enable_auto_remediation: bool = True, enable_notifications: bool = True, cron_stats: Dict = None):
-        self.project_root = PROJECT_ROOT
+    def __init__(self, enable_auto_remediation: bool = True, enable_notifications: bool = True, cron_stats: Dict = None, project_root: Optional[Path] = None):
+        self.project_root = Path(project_root) if project_root else PROJECT_ROOT
         self.zones = ['landing', 'raw', 'staging', 'curated']
         self.services = ['spotify', 'tiktok', 'distrokid', 'toolost', 'linktree', 'metaads']
         self.health_report = {}
         self.enable_auto_remediation = enable_auto_remediation
         self.enable_notifications = enable_notifications
         self.cron_stats = cron_stats or {}
+        self.zone_dirs = {
+            'landing': self._resolve_zone_dir('LANDING_ZONE', '1_landing'),
+            'raw': self._resolve_zone_dir('RAW_ZONE', '2_raw'),
+            'staging': self._resolve_zone_dir('STAGING_ZONE', '3_staging'),
+            'curated': self._resolve_zone_dir('CURATED_ZONE', '4_curated'),
+            'archive': self._resolve_zone_dir('ARCHIVE_ZONE', '5_archive'),
+            'sandbox': self._resolve_zone_dir('SANDBOX_ZONE', '6_sandbox'),
+        }
+        self._file_suffixes = {'.json', '.csv', '.ndjson', '.parquet', '.tsv', '.html', '.zip'}
+        self.service_file_hints = {
+            'spotify': ['spotify'],
+            'tiktok': ['tiktok', 'overview_', 'tt_analytics'],
+            'distrokid': ['distrokid', 'dk_', 'daily_streams_distrokid'],
+            'toolost': ['toolost', 'tidy_daily_streams', 'daily_streams_toolost'],
+            'linktree': ['linktree'],
+            'metaads': ['metaads', 'meta_ads', 'meta-ads']
+        }
+        self.recency_warning_days = 3
+        self.recency_critical_days = 7
+        self.cleaner_lag_tolerance_days = 1
         
         # Service priority mapping for weighted scoring
         self.service_priority = {
@@ -116,64 +136,124 @@ class PipelineHealthMonitor:
         # Track remediation actions taken
         self.remediation_log = []
         
+    def _resolve_zone_dir(self, env_var: str, default_relative: str) -> Path:
+        zone_value = os.environ.get(env_var)
+        if zone_value:
+            zone_path = Path(zone_value)
+            if not zone_path.is_absolute():
+                zone_path = self.project_root / zone_path
+        else:
+            default_path = Path(default_relative)
+            zone_path = default_path if default_path.is_absolute() else self.project_root / default_path
+        try:
+            return zone_path.resolve()
+        except (OSError, RuntimeError):
+            return zone_path
+
+    def _collect_zone_files(self, zone_base: Path, service: str) -> List[Path]:
+        if not zone_base.exists():
+            return []
+        if zone_base.is_file():
+            path_lower = zone_base.as_posix().lower()
+            hints = self._get_service_hints(service)
+            if zone_base.suffix.lower() in self._file_suffixes and any(hint in path_lower for hint in hints):
+                return [zone_base]
+            return []
+        candidates: List[Path] = []
+        hints = self._get_service_hints(service)
+        try:
+            for file_path in zone_base.rglob('*'):
+                if not file_path.is_file():
+                    continue
+                if file_path.suffix.lower() not in self._file_suffixes:
+                    continue
+                path_lower = file_path.as_posix().lower()
+                if any(hint in path_lower for hint in hints):
+                    candidates.append(file_path)
+        except (OSError, PermissionError) as exc:
+            logger.warning(f"Unable to scan zone directory {zone_base}: {exc}")
+        return candidates
+
+    def _get_service_hints(self, service: str) -> List[str]:
+        base_hints = self.service_file_hints.get(service.lower(), [])
+        hints = [hint.lower() for hint in base_hints]
+        service_lower = service.lower()
+        if service_lower not in hints:
+            hints.append(service_lower)
+        return hints
+
     def check_zone_freshness(self, service: str) -> Dict[str, Dict]:
         """Check data freshness in each zone for a service."""
-        freshness = {}
-        
-        # Map zone names to actual directory names
-        zone_mapping = {
-            'landing': '1_landing',
-            'raw': '2_raw',
-            'staging': '3_staging',
-            'curated': '4_curated'
-        }
-        
+        freshness: Dict[str, Dict] = {}
+
         for zone_name in self.zones:
-            zone_dir = zone_mapping.get(zone_name, zone_name)
-            zone_path = self.project_root / zone_dir / service
-            if not zone_path.exists():
+            zone_base = self.zone_dirs.get(zone_name)
+            if not zone_base or not zone_base.exists():
                 freshness[zone_name] = {
                     'exists': False,
                     'latest_file': None,
                     'latest_date': None,
-                    'days_old': None
+                    'latest_timestamp': None,
+                    'days_old': None,
+                    'full_path': None
                 }
                 continue
-                
-            # Find most recent file
-            all_files = []
-            for ext in ['*.json', '*.csv', '*.ndjson', '*.parquet', '*.tsv', '*.html']:
-                all_files.extend(zone_path.glob(ext))
-            
-            # Also check subdirectories (like toolost/streams)
-            for subdir in zone_path.iterdir():
-                if subdir.is_dir():
-                    for ext in ['*.json', '*.csv', '*.ndjson', '*.parquet', '*.tsv']:
-                        all_files.extend(subdir.glob(ext))
-            
+
+            all_files = self._collect_zone_files(zone_base, service)
+
             if not all_files:
                 freshness[zone_name] = {
                     'exists': True,
                     'latest_file': None,
                     'latest_date': None,
-                    'days_old': None
+                    'latest_timestamp': None,
+                    'days_old': None,
+                    'full_path': None
                 }
                 continue
-            
+
             latest_file = max(all_files, key=lambda p: p.stat().st_mtime)
             latest_date = datetime.fromtimestamp(latest_file.stat().st_mtime)
             days_old = (datetime.now() - latest_date).days
-            
+
+            try:
+                relative_path = str(latest_file.relative_to(self.project_root))
+            except ValueError:
+                relative_path = str(latest_file)
+
             freshness[zone_name] = {
                 'exists': True,
                 'latest_file': latest_file.name,
                 'latest_date': latest_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'latest_timestamp': latest_file.stat().st_mtime,
                 'days_old': days_old,
-                'full_path': str(latest_file.relative_to(self.project_root))
+                'full_path': relative_path
             }
-            
+
         return freshness
-    
+
+    def _get_recent_activity_summary(self, freshness: Dict[str, Dict]) -> Dict[str, Optional[Any]]:
+        """Derive the most recent activity across zones."""
+        most_recent_zone: Optional[str] = None
+        most_recent_days: Optional[int] = None
+        most_recent_timestamp: Optional[float] = None
+
+        for zone_name, info in freshness.items():
+            days_old = info.get('days_old')
+            timestamp = info.get('latest_timestamp')
+            if days_old is None:
+                continue
+            if most_recent_days is None or days_old < most_recent_days:
+                most_recent_days = days_old
+                most_recent_zone = zone_name
+                most_recent_timestamp = timestamp
+
+        return {
+            'zone': most_recent_zone,
+            'days_old': most_recent_days,
+            'timestamp': most_recent_timestamp
+        }
+
     def check_cookie_health(self, service: str) -> Dict:
         """Check cookie status for a service."""
         # Special case for MetaAds - it uses API tokens, not cookies
@@ -183,7 +263,8 @@ class PipelineHealthMonitor:
                 'message': 'Uses API authentication',
                 'days_old': 'N/A',
                 'max_age': 'N/A',
-                'expires_in': 'N/A'
+                'expires_in': 'N/A',
+                'severity': 'none'
             }
         
         cookie_patterns = {
@@ -212,13 +293,20 @@ class PipelineHealthMonitor:
                         result = self._check_single_cookie(cookie_file, service)
                         result['account'] = account
                         results.append(result)
-                    return {'status': 'multiple', 'cookies': results}
-            return {'status': 'missing', 'message': 'No cookie files found'}
+                    severity = 'normal'
+                    for entry in results:
+                        if entry['status'] == 'expired':
+                            severity = 'high'
+                            break
+                        if entry['status'] == 'valid' and entry.get('expires_in', 0) <= 3:
+                            severity = 'warning'
+                    return {'status': 'multiple', 'cookies': results, 'severity': severity}
+            return {'status': 'missing', 'message': 'No cookie files found', 'severity': 'high'}
         else:
             cookie_path = self.project_root / pattern
             if cookie_path.exists():
                 return self._check_single_cookie(cookie_path, service)
-            return {'status': 'missing', 'message': 'Cookie file not found'}
+            return {'status': 'missing', 'message': 'Cookie file not found', 'severity': 'high'}
     
     def _check_single_cookie(self, cookie_path: Path, service: str) -> Dict:
         """Check a single cookie file."""
@@ -242,121 +330,199 @@ class PipelineHealthMonitor:
             'days_old': file_age.days,
             'max_age': max_age,
             'expires_in': max_age - file_age.days if not is_expired else 0,
-            'file': cookie_path.name
+            'file': cookie_path.name,
+            'severity': 'high' if is_expired else 'normal'
         }
     
     def detect_pipeline_bottlenecks(self, service: str, freshness: Dict) -> List[str]:
         """Detect where data flow is blocked in the pipeline."""
-        bottlenecks = []
-        
-        # Check if data exists in landing but not in subsequent zones
-        if freshness['landing']['exists'] and freshness['landing']['latest_file']:
-            landing_age = freshness['landing']['days_old']
-            
-            for next_zone in ['raw', 'staging', 'curated']:
-                if not freshness[next_zone]['exists'] or not freshness[next_zone]['latest_file']:
-                    bottlenecks.append(f"No data in {next_zone} zone")
-                elif freshness[next_zone]['days_old'] > landing_age + 1:
+        bottlenecks: List[str] = []
+
+        zone_order = ['landing', 'raw', 'staging', 'curated']
+        previous_zone: Optional[str] = None
+        previous_days: Optional[int] = None
+
+        for zone_name in zone_order:
+            info = freshness.get(zone_name, {})
+            has_data = bool(info.get('latest_date'))
+            zone_days = info.get('days_old')
+
+            if not has_data:
+                if (
+                    previous_zone
+                    and previous_days is not None
+                    and previous_days <= self.cleaner_lag_tolerance_days
+                ):
                     bottlenecks.append(
-                        f"{next_zone} zone is {freshness[next_zone]['days_old'] - landing_age} days behind landing"
+                        f"No data in {zone_name} zone despite recent updates in {previous_zone}"
                     )
-        
-        # Special check for TooLost directory issue
+                continue
+
+            if (
+                previous_zone
+                and previous_days is not None
+                and zone_days is not None
+            ):
+                lag = zone_days - previous_days
+                if lag > self.cleaner_lag_tolerance_days:
+                    bottlenecks.append(
+                        f"{zone_name} zone is {lag} days behind {previous_zone}"
+                    )
+
+            previous_zone = zone_name
+            previous_days = zone_days
+
         if service == 'toolost':
-            # Check both possible locations
-            raw_streams = self.project_root / '2_raw' / 'toolost' / 'streams'
-            raw_direct = self.project_root / '2_raw' / 'toolost'
-            
+            raw_base = self.zone_dirs.get('raw', self.project_root / '2_raw')
+            raw_streams = raw_base / 'toolost' / 'streams'
+            raw_direct = raw_base / 'toolost'
+
             streams_files = list(raw_streams.glob('*.json')) if raw_streams.exists() else []
             direct_files = list(raw_direct.glob('*.json'))
-            
+
+            curated_info = freshness.get('curated', {})
+            curated_days = curated_info.get('days_old')
+
             if direct_files and not streams_files:
-                bottlenecks.append("TooLost files in raw/ but cleaner expects raw/streams/")
+                if curated_days is None or curated_days > self.recency_warning_days:
+                    bottlenecks.append("TooLost files in raw/ but cleaner expects raw/streams/")
             elif streams_files and direct_files:
-                # Check which has newer files
                 latest_streams = max(streams_files, key=lambda p: p.stat().st_mtime) if streams_files else None
                 latest_direct = max(direct_files, key=lambda p: p.stat().st_mtime) if direct_files else None
-                
+
                 if latest_direct and latest_streams:
                     if latest_direct.stat().st_mtime > latest_streams.stat().st_mtime:
-                        bottlenecks.append("Newer TooLost files in raw/ not being processed")
-        
+                        if curated_days is None or curated_days > self.recency_warning_days:
+                            bottlenecks.append("Newer TooLost files in raw/ not being processed")
+
+        if not any(info.get('latest_date') for info in freshness.values()):
+            bottlenecks.append("No recent files detected in any zone")
+
         return bottlenecks
     
     def get_recommendations(self, service: str, freshness: Dict, cookie_health: Dict, bottlenecks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
         """Generate actionable recommendations and automatic remediation actions.
-        
+
         Returns:
             recommendations: List of manual action items
             auto_actions: List of actions that can be taken automatically
         """
-        recommendations = []
-        auto_actions = []
-        
-        # Cookie recommendations with auto-remediation (skip for MetaAds)
-        if service == 'metaads' and cookie_health['status'] == 'N/A':
-            # MetaAds uses API authentication, no cookie actions needed
+        recommendations: List[str] = []
+        auto_actions: List[Dict[str, Any]] = []
+
+        recent_summary = self._get_recent_activity_summary(freshness)
+        recent_days = recent_summary.get("days_old")
+        data_is_fresh = recent_days is not None and recent_days <= self.recency_warning_days
+
+        cookie_status = cookie_health.get("status")
+        cookie_severity = cookie_health.get("severity", "normal")
+
+        if service == "metaads" and cookie_status == "N/A":
             pass
-        elif cookie_health['status'] == 'missing':
-            recommendations.append(f"Run manual authentication for {service}")
-            auto_actions.append({
-                'type': 'cookie_refresh',
-                'service': service,
-                'reason': 'missing_cookies',
-                'priority': 'high'
-            })
-        elif cookie_health['status'] == 'expired':
-            days_expired = cookie_health['days_old'] - cookie_health['max_age']
-            recommendations.append(f"Refresh {service} cookies (expired {days_expired} days ago)")
-            auto_actions.append({
-                'type': 'cookie_refresh',
-                'service': service,
-                'reason': f'expired_{days_expired}_days_ago',
-                'priority': 'critical' if days_expired > 7 else 'high'
-            })
-        elif cookie_health['status'] == 'valid' and cookie_health.get('expires_in', 0) <= 3:
-            recommendations.append(f"Consider refreshing {service} cookies (expires in {cookie_health['expires_in']} days)")
-            auto_actions.append({
-                'type': 'cookie_refresh',
-                'service': service,
-                'reason': f'expiring_soon_{cookie_health["expires_in"]}_days',
-                'priority': 'medium'
-            })
-        
-        # Data freshness recommendations
-        if freshness['landing']['exists'] and freshness['landing']['days_old'] is not None:
-            if freshness['landing']['days_old'] > 7:
-                recommendations.append(f"⚠️ URGENT: Run {service} extractor (last data: {freshness['landing']['days_old']} days ago)")
+        elif cookie_status == "missing":
+            if data_is_fresh:
+                cookie_health["severity"] = "low"
+                cookie_health["message"] = (
+                    "Cookie file not detected, but recent data updates confirm extractor access"
+                )
+            else:
+                recommendations.append(f"Run manual authentication for {service}")
                 auto_actions.append({
-                    'type': 'run_extractor',
-                    'service': service,
-                    'reason': f'stale_data_{freshness["landing"]["days_old"]}_days',
-                    'priority': 'high'
+                    "type": "cookie_refresh",
+                    "service": service,
+                    "reason": "missing_cookies",
+                    "priority": "high"
                 })
-            elif freshness['landing']['days_old'] > 3:
-                recommendations.append(f"Run {service} extractor (last data: {freshness['landing']['days_old']} days ago)")
-        
-        # Bottleneck recommendations with auto-fixes
-        if bottlenecks:
-            if "TooLost files in raw/ but cleaner expects raw/streams/" in bottlenecks:
-                recommendations.append("Update toolost_raw2staging.py to check both directories")
+        elif cookie_status == "expired":
+            days_expired = cookie_health["days_old"] - cookie_health["max_age"]
+            if data_is_fresh and days_expired <= self.recency_critical_days:
+                cookie_health["severity"] = "low"
+                cookie_health["message"] = (
+                    f"Cookie timestamp older than policy, but data landed {recent_days} day(s) ago"
+                )
+            else:
+                recommendations.append(f"Refresh {service} cookies (expired {days_expired} days ago)")
                 auto_actions.append({
-                    'type': 'fix_directory_mismatch',
-                    'service': 'toolost',
-                    'reason': 'directory_structure_issue',
-                    'priority': 'critical'
+                    "type": "cookie_refresh",
+                    "service": service,
+                    "reason": f"expired_{days_expired}_days_ago",
+                    "priority": "critical" if days_expired > 7 else "high"
                 })
-            if any("No data in" in b for b in bottlenecks):
-                recommendations.append(f"Run cleaners for {service}")
+        elif cookie_status == "multiple":
+            if cookie_severity == "high":
+                recommendations.append(f"Refresh {service} cookies (one or more accounts expired)")
                 auto_actions.append({
-                    'type': 'run_cleaners',
-                    'service': service,
-                    'reason': 'pipeline_blocked',
-                    'priority': 'medium'
+                    "type": "cookie_refresh",
+                    "service": service,
+                    "reason": "multi_account_expired",
+                    "priority": "high"
                 })
-        
+            elif cookie_severity == "warning" and not data_is_fresh:
+                recommendations.append(f"Verify {service} cookies (one or more accounts expiring soon)")
+                auto_actions.append({
+                    "type": "cookie_refresh",
+                    "service": service,
+                    "reason": "multi_account_expiring",
+                    "priority": "medium"
+                })
+        elif cookie_status == "valid" and cookie_health.get("expires_in", 0) <= 3:
+            if cookie_severity != "low":
+                recommendations.append(
+                    f"Consider refreshing {service} cookies (expires in {cookie_health['expires_in']} days)"
+                )
+                auto_actions.append({
+                    "type": "cookie_refresh",
+                    "service": service,
+                    "reason": f"expiring_soon_{cookie_health['expires_in']}_days",
+                    "priority": "medium"
+                })
+
+        if recent_days is not None:
+            if recent_days > self.recency_critical_days:
+                recommendations.append(
+                    f"URGENT: Run {service} extractor (last data: {recent_days} days ago in {recent_summary.get('zone')})"
+                )
+                auto_actions.append({
+                    "type": "run_extractor",
+                    "service": service,
+                    "reason": f"stale_data_{recent_days}_days",
+                    "priority": "high"
+                })
+            elif recent_days > self.recency_warning_days:
+                recommendations.append(
+                    f"Plan extractor run for {service} (last data {recent_days} days ago in {recent_summary.get('zone')})"
+                )
+
+        filtered_bottlenecks: List[str] = []
+        for entry in bottlenecks:
+            if entry == "No recent files detected in any zone":
+                filtered_bottlenecks.append(entry)
+                continue
+            if data_is_fresh and "No data in" in entry:
+                continue
+            filtered_bottlenecks.append(entry)
+
+        for issue in filtered_bottlenecks:
+            if "TooLost files in raw/ but cleaner expects raw/streams/" in issue:
+                recommendations.append("Align TooLost raw directory structure with cleaner expectations")
+                auto_actions.append({
+                    "type": "fix_directory_mismatch",
+                    "service": "toolost",
+                    "reason": "directory_structure_issue",
+                    "priority": "critical"
+                })
+            elif "No recent files detected in any zone" in issue:
+                recommendations.append(f"Investigate {service} pipeline: no recent files in any zone")
+            elif "zone is" in issue or "No data in" in issue:
+                recommendations.append(issue)
+                auto_actions.append({
+                    "type": "run_cleaners",
+                    "service": service,
+                    "reason": "pipeline_blocked",
+                    "priority": "medium"
+                })
+
         return recommendations, auto_actions
-    
     def generate_report(self) -> Dict:
         """Generate comprehensive health report with auto-remediation."""
         report = {
@@ -374,6 +540,7 @@ class PipelineHealthMonitor:
             logger.info(f"Checking {service}...")
             
             freshness = self.check_zone_freshness(service)
+            recent_summary = self._get_recent_activity_summary(freshness)
             cookie_health = self.check_cookie_health(service)
             bottlenecks = self.detect_pipeline_bottlenecks(service, freshness)
             recommendations, auto_actions = self.get_recommendations(service, freshness, cookie_health, bottlenecks)
@@ -401,6 +568,7 @@ class PipelineHealthMonitor:
                 'status': status.value,
                 'priority': self.service_priority.get(service, ServicePriority.LOW).name,
                 'freshness': freshness,
+                'recent_activity': recent_summary,
                 'cookie_health': cookie_health,
                 'bottlenecks': bottlenecks,
                 'recommendations': recommendations,
@@ -434,6 +602,8 @@ class PipelineHealthMonitor:
         """Calculate health score with priority weighting."""
         base_score = 100
         priority = self.service_priority.get(service, ServicePriority.LOW)
+        recent_summary = self._get_recent_activity_summary(freshness)
+        recent_days = recent_summary.get('days_old')
         
         # Priority multipliers for score deductions
         priority_multiplier = {
@@ -446,32 +616,37 @@ class PipelineHealthMonitor:
         multiplier = priority_multiplier[priority]
         
         # Data freshness deductions
-        if freshness['landing']['days_old'] is not None:
-            days_old = freshness['landing']['days_old']
-            if days_old > 14:
+        if recent_days is not None:
+            if recent_days > 14:
                 base_score -= int(40 * multiplier)
-            elif days_old > 7:
+            elif recent_days > self.recency_critical_days:
                 base_score -= int(30 * multiplier)
-            elif days_old > 3:
+            elif recent_days > self.recency_warning_days:
                 base_score -= int(15 * multiplier)
-            elif days_old > 1:
+            elif recent_days > self.cleaner_lag_tolerance_days:
                 base_score -= int(5 * multiplier)
+        else:
+            base_score -= int(20 * multiplier)
         
         # Cookie health deductions (skip for MetaAds which uses API auth)
         if service != 'metaads':
-            if cookie_health['status'] == 'expired':
+            severity = cookie_health.get('severity', 'normal')
+            if severity == 'high':
                 base_score -= int(30 * multiplier)
-            elif cookie_health['status'] == 'missing':
-                base_score -= int(50 * multiplier)
-            elif cookie_health['status'] == 'valid' and cookie_health.get('expires_in', 30) <= 3:
-                base_score -= int(10 * multiplier)
+            elif severity == 'warning':
+                base_score -= int(15 * multiplier)
+            elif cookie_health.get('status') == 'missing' and severity == 'normal':
+                base_score -= int(40 * multiplier)
         
         # Bottleneck deductions
-        base_score -= int(len(bottlenecks) * 10 * multiplier)
+        effective_bottlenecks = [
+            b for b in bottlenecks if "No data in" in b or "zone is" in b or "No recent files" in b
+        ]
+        base_score -= int(len(effective_bottlenecks) * 10 * multiplier)
         
         # Special case for TooLost - extra penalty for being out of date
-        if service == 'toolost' and freshness['landing']['days_old'] is not None:
-            if freshness['landing']['days_old'] > 7:
+        if service == 'toolost' and recent_days is not None:
+            if recent_days > 7:
                 base_score -= 20  # Extra penalty for critical service
         
         return max(0, min(100, base_score))
@@ -590,7 +765,8 @@ class PipelineHealthMonitor:
     def _fix_toolost_directory(self) -> bool:
         """Fix TooLost directory structure issue."""
         try:
-            raw_dir = self.project_root / 'raw' / 'toolost'
+            raw_base = self.zone_dirs.get('raw', self.project_root / '2_raw')
+            raw_dir = raw_base / 'toolost'
             raw_streams_dir = raw_dir / 'streams'
             
             # Create streams directory if it doesn't exist
@@ -647,20 +823,28 @@ class PipelineHealthMonitor:
             
             # Build issues string
             issues = []
-            if data['cookie_health']['status'] == 'expired':
-                issues.append("COOKIES EXPIRED")
-            elif data['cookie_health']['status'] == 'missing':
-                issues.append("NO COOKIES")
+            cookie_info = data['cookie_health']
+            cookie_severity = cookie_info.get('severity', 'normal')
+            if cookie_severity == 'high':
+                issues.append("AUTH BLOCKED")
+            elif cookie_severity == 'warning':
+                issues.append("AUTH WARNING")
+
+            recent_activity = data.get('recent_activity', {})
+            recent_days = recent_activity.get('days_old')
+            if recent_days is None:
+                issues.append("No recent files")
+            elif recent_days > self.recency_critical_days:
+                issues.append(f"{recent_days}d STALE")
+            elif recent_days > self.recency_warning_days:
+                issues.append(f"{recent_days}d old")
             
-            if data['freshness']['landing']['days_old'] is not None:
-                days = data['freshness']['landing']['days_old']
-                if days > 7:
-                    issues.append(f"{days}d STALE")
-                elif days > 3:
-                    issues.append(f"{days}d old")
-            
-            if data['bottlenecks']:
-                issues.append(f"{len(data['bottlenecks'])} blocks")
+            effective_bottlenecks = [
+                b for b in data['bottlenecks']
+                if "No data in" in b or "zone is" in b or "No recent files" in b
+            ]
+            if effective_bottlenecks:
+                issues.append(f"{len(effective_bottlenecks)} blocks")
             
             issues_str = ", ".join(issues) if issues else "No issues"
             
@@ -689,32 +873,56 @@ class PipelineHealthMonitor:
             
             for service, data in critical_services:
                 print(f"\n{service.upper()} [{data['priority']} PRIORITY]:")
-                
+
                 # Cookie status
-                cookie_status = data['cookie_health']['status']
-                if cookie_status in ['expired', 'missing']:
-                    print(f"  - Cookies: {cookie_status.upper()}")
-                    if cookie_status == 'expired':
-                        days_expired = data['cookie_health']['days_old'] - data['cookie_health']['max_age']
+                cookie_info = data['cookie_health']
+                cookie_severity = cookie_info.get('severity', 'normal')
+                if cookie_severity == 'high':
+                    print(f"  - Auth: {cookie_info.get('status', 'unknown').upper()} (immediate attention)")
+                    if cookie_info.get('status') == 'expired':
+                        days_expired = cookie_info['days_old'] - cookie_info['max_age']
                         print(f"    Expired: {days_expired} days ago")
-                        print(f"    Action: Immediate refresh required")
-                    elif data['cookie_health'].get('expires_in', 999) <= 3:
-                        print(f"    Warning: Expires in {data['cookie_health']['expires_in']} days")
-                
+                    if cookie_info.get('status') == 'missing':
+                        print("    No valid cookie file detected")
+                    print("    Action: Refresh session credentials now")
+                elif cookie_severity == 'warning':
+                    print("  - Auth: session nearing expiry")
+                    expires_in = cookie_info.get('expires_in')
+                    if expires_in is not None:
+                        print(f"    Expires in {expires_in} days")
+                    print("    Action: Plan authentication refresh")
+                elif cookie_severity == 'low':
+                    print("  - Auth: credentials not tracked, data still flowing")
+                    print("    Action: Verify cookies during next maintenance window")
+
                 # Data freshness
-                if data['freshness']['landing']['days_old'] is not None:
-                    days_old = data['freshness']['landing']['days_old']
-                    if days_old > 3:
-                        print(f"  - Data Age: {days_old} days old")
-                        print(f"    Latest: {data['freshness']['landing']['latest_file']}")
-                        print(f"    Action: Run extractor immediately")
-                
+                recent_activity = data.get('recent_activity', {})
+                recent_days = recent_activity.get('days_old')
+                recent_zone = recent_activity.get('zone')
+                if recent_days is None:
+                    print("  - Data Age: No recent files detected")
+                    print("    Action: Investigate extractor output paths")
+                elif recent_days > self.recency_warning_days:
+                    zone_note = f" (latest zone: {recent_zone})" if recent_zone else ""
+                    print(f"  - Data Age: {recent_days} days old{zone_note}")
+                    if recent_days > self.recency_critical_days:
+                        print("    Action: Run extractor immediately")
+                    else:
+                        print("    Action: Schedule extractor run")
+
                 # Bottlenecks
-                if data['bottlenecks']:
+                effective_bottlenecks = [
+                    b for b in data['bottlenecks']
+                    if "No data in" in b or "zone is" in b or "No recent files" in b
+                ]
+                if effective_bottlenecks:
+                    print("  - Pipeline Bottlenecks:")
+                    for bottleneck in effective_bottlenecks:
+                        print(f"    - {bottleneck}")
+                elif data['bottlenecks']:
                     print("  - Pipeline Bottlenecks:")
                     for bottleneck in data['bottlenecks']:
-                        print(f"    • {bottleneck}")
-        
+                        print(f"    - {bottleneck}")
         # Manual action items
         print("\nMANUAL ACTION ITEMS (Sorted by Priority)")
         print("-"*80)
@@ -822,7 +1030,7 @@ class PipelineHealthMonitor:
                     start_str = self.cron_stats['start_time']
                     end_str = self.cron_stats['end_time']
                     # For now, just display the times (parsing Windows date format is complex)
-                    duration_str = f"{start_str} → {end_str}"
+                    duration_str = f"{start_str} -> {end_str}"
                 except:
                     pass
             
@@ -859,6 +1067,32 @@ class PipelineHealthMonitor:
         # Add service cards
         for service, data in report['services'].items():
             status_class = data['status'].lower()
+            recent_activity = data.get('recent_activity', {})
+            recent_days = recent_activity.get('days_old')
+            recent_zone = recent_activity.get('zone')
+            if recent_days is None:
+                data_age_display = "No recent files"
+            elif recent_zone:
+                data_age_display = f"{recent_days} days (latest: {recent_zone})"
+            else:
+                data_age_display = f"{recent_days} days"
+
+            cookie_info = data['cookie_health']
+            cookie_severity = cookie_info.get('severity', 'normal')
+            if cookie_severity == 'high':
+                cookie_status_text = "Authentication required"
+            elif cookie_severity == 'warning':
+                cookie_status_text = "Authentication check soon"
+            elif cookie_severity == 'low':
+                cookie_status_text = "Auth untracked but data recent"
+            else:
+                cookie_status_text = "Healthy"
+
+            effective_bottlenecks = [
+                b for b in data['bottlenecks']
+                if "No data in" in b or "zone is" in b or "No recent files" in b
+            ]
+
             html_content += f"""
             <div class="service-card {status_class}">
                 <h3>{service.upper()} <span class="status-badge status-{status_class}">{data['health_score']}%</span></h3>
@@ -866,14 +1100,12 @@ class PipelineHealthMonitor:
                     <span class="metric-label">Priority:</span> {data['priority']}
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Cookie Status:</span> {data['cookie_health']['status']}{' (API Authentication)' if service == 'metaads' and data['cookie_health']['status'] == 'N/A' else ''}
-                    {f" (expires in {data['cookie_health'].get('expires_in', 'N/A')} days)" if data['cookie_health']['status'] == 'valid' else ''}
+                    <span class="metric-label">Data Age:</span> {data_age_display}
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Data Age:</span> 
-                    {f"{data['freshness']['landing']['days_old']} days" if data['freshness']['landing']['days_old'] is not None else 'No data'}
+                    <span class="metric-label">Auth:</span> {cookie_status_text}
                 </div>
-                {f'<div class="metric"><span class="metric-label">Bottlenecks:</span> {len(data["bottlenecks"])}</div>' if data['bottlenecks'] else ''}
+                {f'<div class="metric"><span class="metric-label">Bottlenecks:</span> {len(effective_bottlenecks)}</div>' if effective_bottlenecks else ''}
             </div>
 """
         
