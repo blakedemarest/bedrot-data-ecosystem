@@ -21,6 +21,7 @@
 - Pipelines: ``6_automated_cronjob\run_datalake_cron.bat`` (full pipeline) or ``6_automated_cronjob\run_datalake_cron_no_extractors.bat`` (cleaners only / automated mode to skip services awaiting re-auth).
 - Testing: ``pytest -ra --cov=src --cov-report=term-missing`` plus focused suites (``pytest tests/<platform>/ -v``). Bake zone assertions and checksum guards into new tests.
 - Style: ``black src/``, ``isort src/``, ``flake8 src/``, ``mypy src/``. Emit structured logs that include zone names and record counts.
+- **IMPORTANT!!!** Playwright discipline: run every Playwright-driven extractor **non-headless** so Cloudflare and auth challenges render and succeed; do not toggle headless on for any service.
 
 ## Authentication & Cookie Discipline
 - Semi-manual by design: extractors never bypass MFA. Expect cookies to expire and prompt users for new credentials.

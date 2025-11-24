@@ -1,4 +1,4 @@
-# CLAUDE.md - Data Lake Automation & Scheduling
+# Data Lake Automation & Scheduling
 
 This directory contains the consolidated automation scripts that orchestrate the entire Data Lake ETL pipeline execution.
 
@@ -14,7 +14,7 @@ The cronjob system provides automated, scheduled execution of all data lake proc
 ├── run_datalake_cron_no_extractors.bat # Cleaners only variant (Windows)
 ├── generate_no_extractors_cron.py     # Generate cleaner-only script
 ├── data_lake_cron_flow.dot            # Pipeline flow diagram
-├── CLAUDE.md                          # This documentation
+├── AGENTS.md                          # This documentation
 └── README.md                          # Basic documentation
 ```
 
