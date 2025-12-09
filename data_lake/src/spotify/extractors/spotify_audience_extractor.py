@@ -1,25 +1,36 @@
 """spotify_audience_extractor.py
-Automates Spotify for Artists Audience stats CSV download via Playwright.
+Automates Spotify for Artists data extraction via Playwright.
+
+Extracts two types of data:
+1. Audience stats CSV (demographics, listener trends)
+2. Song metrics JSON across 5 time periods (24h, 7d, 28d, 12m, all time)
 
 Workflow:
-1. Navigate to the artist homepage (https://artists.spotify.com/c/en/artist/<ARTIST_ID>).  
-2. Detect whether login is required; if so, waits for the user (and 2-FA) to finish.  
-3. Click the **Audience** navigation item.  
-4. Open **Filters** → choose **12 months** → click **Done**.  
+1. Navigate to the artist homepage (https://artists.spotify.com/c/en/artist/<ARTIST_ID>).
+2. Detect whether login is required; if so, waits for the user (and 2-FA) to finish.
+3. Click the **Audience** navigation item.
+4. Open **Filters** -> choose **12 months** -> click **Done**.
 5. Click the CSV **download** button, capture the download, and write it to
    ``landing/spotify/audience`` with a timestamped filename.
+6. Navigate to **Music/Songs** page.
+7. For each time period (24h, 7d, 28d, 12m, all time):
+   - Select the time filter
+   - Intercept the API response containing song metrics
+8. Save all captured JSON responses to ``landing/spotify/songs``.
 
 Script follows the conventions in ``LLM_cleaner_guidelines.md`` and is modelled
 on ``linktree_analytics_extractor.py``.
 
 Usage
 -----
-$ python spotify_audience_extractor.py                            # default artist
-$ python spotify_audience_extractor.py --artist 1Eu67EqPy2NutiM0lqCarw
+$ python spotify_audience_extractor.py                     # default artists, full extraction
+$ python spotify_audience_extractor.py --artists <ID1> <ID2>  # specific artists
+$ python spotify_audience_extractor.py --skip-songs        # audience data only (no song metrics)
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -64,6 +75,37 @@ FILTER_DONE_SELECTOR = "span:has-text('Done')[class*='button-primary__inner'], b
 # Download button contains SVG with circular download icon
 CSV_DOWNLOAD_BUTTON = "button:has(svg[viewBox='0 0 24 24'] path[d*='M12 3a9'])"
 
+# ---------------------------------------------------------------------------
+# Song Metrics Constants
+# ---------------------------------------------------------------------------
+SONGS_LANDING_DIR = Path(PROJECT_ROOT) / "1_landing" / "spotify" / "songs"
+SONGS_LANDING_DIR.mkdir(parents=True, exist_ok=True)
+
+# Music/Songs page navigation
+MUSIC_NAV_SELECTOR = "span[data-encore-id='text']:has-text('Music')"
+SONGS_PAGE_URL_TEMPLATE = "https://artists.spotify.com/c/artist/{artist_id}/music/songs"
+
+# Filter button on songs page
+SONGS_FILTER_BUTTON_SELECTORS = [
+    "button[aria-label='Select to further filter your results']",
+    "button[data-encore-id='chipFilter']",
+    "button:has-text('Filters')",
+]
+
+# Time period filter radio labels
+TIME_PERIODS = {
+    "1day": "label[for='1day']",
+    "7day": "label[for='7day']",
+    "28day": "label[for='28day']",
+    "1year": "label[for='1year']",
+    "all": "label[for='all']",
+}
+
+# API URL patterns for network interception
+# Actual Spotify API endpoint (not Next.js page data)
+SONGS_API_PATTERN = "generic.wg.spotify.com/catalog-view"
+SONGS_API_TIME_FILTER_PARAM = "time-filter="
+
 
 def _click(page, selector: str, desc: str | None = None, retries: int = 3) -> None:
     """Click the first element matching *selector* with basic retry."""
@@ -79,7 +121,7 @@ def _click(page, selector: str, desc: str | None = None, retries: int = 3) -> No
             time.sleep(0.5)
             locator.click(force=True)
             if desc:
-                print(f"[INFO] Clicked {desc} → {selector}")
+                print(f"[INFO] Clicked {desc} -> {selector}")
             return
         except Exception as exc:
             print(f"[WARN] Attempt {attempt}/{retries} to click {selector} failed: {exc}")
@@ -98,13 +140,13 @@ def _wait_for_audience_nav(page):
 
 def _login_if_needed(page, artist_url: str) -> None:
     """Navigate to *artist_url* and wait for login (incl. 2FA) if necessary."""
-    print(f"[INFO] Navigating to {artist_url} …")
+    print(f"[INFO] Navigating to {artist_url} ...")
     page.goto(artist_url, wait_until="domcontentloaded")
 
     try:
         _wait_for_audience_nav(page)
     except RuntimeError:
-        print("[ACTION REQUIRED] Please log in to Spotify for Artists (2-FA if prompted)…")
+        print("[ACTION REQUIRED] Please log in to Spotify for Artists (2-FA if prompted)...")
         
         # Auto-fill email if environment variable is set
         spotify_email = os.environ.get("SPOTIFY_FOR_ARTISTS_EMAIL") or os.environ.get("SPOTIFY_EMAIL")
@@ -145,7 +187,7 @@ def _login_if_needed(page, artist_url: str) -> None:
 
 def _apply_12_month_filter(page):
     """Ensure the audience chart is filtered to the last 12 months."""
-    print("[INFO] Opening filter controls…")
+    print("[INFO] Opening filter controls...")
     _click(page, FILTER_CHIP_SELECTOR, desc="Filters chip")
     page.wait_for_timeout(1000)
 
@@ -245,17 +287,170 @@ def _download_csv(page, artist_id: str) -> Path:
         _click(page, CSV_DOWNLOAD_BUTTON, desc="CSV download button")
     download = dl_info.value
     download.save_as(dest_path)
-    print(f"[SAVED] CSV → {dest_path.relative_to(PROJECT_ROOT)}")
+    print(f"[SAVED] CSV -> {dest_path.relative_to(PROJECT_ROOT)}")
     return dest_path
+
+
+# ---------------------------------------------------------------------------
+# Song Metrics Extraction Functions
+# ---------------------------------------------------------------------------
+def _setup_song_metrics_capture(page) -> dict:
+    """Set up network response interception for song metrics API calls.
+
+    Returns a dictionary that will be populated with captured responses
+    keyed by time period (1day, 7day, 28day, 1year, all).
+    """
+    captured_responses = {}
+
+    def handle_response(response):
+        url = response.url
+        # Check if this is a songs API response with time-filter parameter
+        if SONGS_API_PATTERN in url and SONGS_API_TIME_FILTER_PARAM in url:
+            try:
+                # Extract the time-filter value from URL
+                match = re.search(r'time-filter=(\w+)', url)
+                if match:
+                    period = match.group(1)
+                    # In sync Playwright, response.json() works directly
+                    try:
+                        json_data = response.json()
+                        captured_responses[period] = {
+                            "data": json_data,
+                            "url": url,
+                            "status": response.status,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        print(f"[CAPTURED] Song metrics for period: {period}")
+                    except Exception:
+                        # Fallback to body() if json() fails
+                        body = response.body()
+                        captured_responses[period] = {
+                            "data": body.decode('utf-8'),
+                            "url": url,
+                            "status": response.status,
+                            "timestamp": datetime.now().isoformat(),
+                            "raw_body": True
+                        }
+                        print(f"[CAPTURED] Song metrics (raw) for period: {period}")
+            except Exception as e:
+                print(f"[WARN] Failed to capture song metrics response: {e}")
+
+    page.on("response", handle_response)
+    return captured_responses
+
+
+def _extract_song_metrics(page, artist_id: str, skip_songs: bool = False) -> list:
+    """Extract song metrics for all time periods and save to landing zone.
+
+    Args:
+        page: Playwright page object
+        artist_id: Spotify artist ID
+        skip_songs: If True, skip song metrics extraction entirely
+
+    Returns:
+        List of paths to saved JSON files
+    """
+    if skip_songs:
+        print("[INFO] Skipping song metrics extraction (--skip-songs flag)")
+        return []
+
+    saved_files = []
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Set up response capture before any navigation
+    captured_responses = _setup_song_metrics_capture(page)
+
+    # Navigate to songs page
+    songs_url = SONGS_PAGE_URL_TEMPLATE.format(artist_id=artist_id)
+    print(f"[INFO] Navigating to songs page: {songs_url}")
+    page.goto(songs_url, wait_until="domcontentloaded")
+
+    try:
+        page.wait_for_load_state("networkidle", timeout=15000)
+    except Exception:
+        print("[WARN] Network did not fully settle, continuing...")
+
+    # Open the filters menu
+    filter_clicked = False
+    for selector in SONGS_FILTER_BUTTON_SELECTORS:
+        try:
+            locator = page.locator(selector).first
+            locator.wait_for(state="visible", timeout=5000)
+            locator.click(force=True)
+            print(f"[INFO] Opened filters menu via: {selector}")
+            filter_clicked = True
+            time.sleep(1)  # Wait for menu to open
+            break
+        except Exception as e:
+            print(f"[WARN] Filter selector failed: {selector} - {e}")
+            continue
+
+    if not filter_clicked:
+        print("[ERROR] Could not open filters menu on songs page")
+        return saved_files
+
+    # Click each time period filter and wait for response
+    for period_key, label_selector in TIME_PERIODS.items():
+        try:
+            print(f"[INFO] Selecting time period: {period_key}")
+
+            # Click the radio label
+            label = page.locator(label_selector).first
+            label.wait_for(state="visible", timeout=5000)
+            label.click(force=True)
+
+            # Wait for network activity to settle (API response)
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+            time.sleep(1)  # Additional buffer for response capture
+
+        except Exception as e:
+            print(f"[WARN] Failed to select time period {period_key}: {e}")
+            continue
+
+    # Dismiss the filter menu
+    try:
+        page.keyboard.press("Escape")
+        time.sleep(0.5)
+    except Exception:
+        pass
+
+    # Save all captured responses
+    for period, response_data in captured_responses.items():
+        try:
+            filename = f"spotify_songs_{artist_id}_{period}_{timestamp}.json"
+            filepath = SONGS_LANDING_DIR / filename
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2, ensure_ascii=False)
+
+            print(f"[SAVED] Song metrics -> {filepath.relative_to(PROJECT_ROOT)}")
+            saved_files.append(filepath)
+
+        except Exception as e:
+            print(f"[ERROR] Failed to save song metrics for {period}: {e}")
+
+    # Report any missing periods
+    expected_periods = set(TIME_PERIODS.keys())
+    captured_periods = set(captured_responses.keys())
+    missing = expected_periods - captured_periods
+    if missing:
+        print(f"[WARN] Missing song metrics for periods: {missing}")
+
+    return saved_files
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Spotify Audience extractor")
     parser.add_argument("--artists", nargs="*", default=DEFAULT_ARTIST_IDS, help="Space-separated list of Spotify Artist IDs")
+    parser.add_argument("--skip-songs", action="store_true", help="Skip song metrics extraction (only extract audience data)")
     args = parser.parse_args()
     artist_ids: list[str] = args.artists
+    skip_songs: bool = args.skip_songs
 
-    print(f"[INFO] Starting Spotify Audience extractor for {len(artist_ids)} artist(s)…")
+    print(f"[INFO] Starting Spotify Audience extractor for {len(artist_ids)} artist(s)...")
     
     # Set up session directory for persistent context
     SESSION_DIR = Path(PROJECT_ROOT) / "src" / ".playwright_spotify_session"
@@ -298,6 +493,16 @@ def main() -> None:
                 print(f"[INFO] Audience page loaded for {aid}.")
                 _apply_12_month_filter(page)
                 _download_csv(page, aid)
+
+                # Extract song metrics across all time periods
+                try:
+                    song_files = _extract_song_metrics(page, aid, skip_songs=skip_songs)
+                    if song_files:
+                        print(f"[INFO] Saved {len(song_files)} song metrics files for {aid}")
+                except Exception as e:
+                    print(f"[WARN] Song metrics extraction failed for {aid}: {e}")
+                    # Continue with next artist - don't fail the entire run
+
                 # Navigate back to generic home between iterations to reset state
                 page.goto("https://artists.spotify.com/home", wait_until="domcontentloaded")
         except KeyboardInterrupt:
