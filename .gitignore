@@ -307,6 +307,15 @@ data_lake/curated/*.md
 # =========================
 # Keep These Files
 # =========================
+# Dashboard Infrastructure (critical for dashboard to work)
+!data_dashboard/lib/
+!data_dashboard/lib/**
+!data_dashboard/package.json
+!data_dashboard/tsconfig.json
+!data_dashboard/.env.context
+!data_dashboard/public/
+!data_dashboard/public/**
+
 # Documentation
 !README.md
 !CLAUDE.md
