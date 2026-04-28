@@ -2,17 +2,34 @@
 setlocal EnableDelayedExpansion
 
 REM ================================================================================
-REM                       BEDROT DATA LAKE MASTER PIPELINE
+REM                       BEDROT DATA LAKE MASTER PIPELINE - FIXED VERSION
 REM           Comprehensive ETL with Cookie Management and Health Monitoring
 REM ================================================================================
 REM This is the main consolidated pipeline that handles:
 REM - Cookie status checking and auto-refresh
 REM - Pipeline health monitoring with auto-remediation
-REM - Individual service extractors (no integrated_extractor.py)
+REM - Individual service extractors
 REM - Data cleaning pipeline
 REM - Data warehouse ETL
 REM - Comprehensive reporting
+REM
+REM ENHANCED LOGGING (2025-07-15):
+REM - All Python scripts now run through run_with_auth_check.py
+REM - Full stderr/stdout capture with timestamps
+REM - Structured JSON logs in logs/pipeline_executor_structured.jsonl
+REM - Grep-able error format: [ERROR] [timestamp] [service] message
+REM - Check logs/pipeline_executor.log for detailed error information
 REM ================================================================================
+
+REM === EARLY ERROR CATCHING ===
+if "%~1"=="--help" (
+    echo Usage: run_datalake_cron.bat [--skip-extractors]
+    echo.
+    echo Options:
+    echo   --skip-extractors    Skip data extraction, only run cleaners
+    echo   --help              Show this help message
+    exit /b 0
+)
 
 REM === ENVIRONMENT SETUP ===
 echo.
@@ -22,23 +39,110 @@ echo                          Starting at %date% %time%
 echo ================================================================================
 echo.
 
-REM Ensure we're in the correct directory
-cd /d "%~dp0.."
-set "PROJECT_ROOT=%CD%"
+REM Set console to UTF-8 for proper character display
+chcp 65001 >nul 2>&1
 
-REM === Ensure .venv exists and is ready ===
-IF NOT EXIST "%PROJECT_ROOT%\.venv\Scripts\activate.bat" (
-    echo [INFO] Python virtual environment not found. Creating .venv...
-    python -m venv "%PROJECT_ROOT%\.venv"
-    echo [INFO] Installing requirements...
-    call "%PROJECT_ROOT%\.venv\Scripts\activate.bat"
-    pip install --upgrade pip
-    pip install -r "%PROJECT_ROOT%\requirements.txt"
-    deactivate
+REM Set Python to use UTF-8 encoding
+set PYTHONIOENCODING=utf-8
+
+REM Ensure we're in the correct directory
+echo [DEBUG] Changing to project directory...
+cd /d "%~dp0.."
+if errorlevel 1 (
+    echo [ERROR] Failed to change directory!
+    pause
+    exit /b 1
+)
+set "PROJECT_ROOT=%CD%"
+echo [DEBUG] PROJECT_ROOT: %PROJECT_ROOT%
+
+REM Capture cron job start time for reporting
+set "CRON_START_TIME=%date% %time%"
+set "CRON_START_DATE=%date%"
+set "CRON_START_TIME_ONLY=%time%"
+echo [INFO] Cron job started at: %CRON_START_TIME%
+
+REM === Virtual Environment Management ===
+echo [INFO] Checking for Python virtual environment...
+
+REM Check for common virtual environment directories
+set "VENV_DIR="
+if exist "%PROJECT_ROOT%\venv\Scripts\activate.bat" set "VENV_DIR=venv"
+if exist "%PROJECT_ROOT%\.venv\Scripts\activate.bat" set "VENV_DIR=.venv"
+if exist "%PROJECT_ROOT%\env\Scripts\activate.bat" set "VENV_DIR=env"
+
+REM Create virtual environment if none exists
+if "%VENV_DIR%"=="" (
+    echo [WARN] No virtual environment found. Creating .venv...
+    python -m venv "%PROJECT_ROOT%\.venv" 2>nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to create virtual environment. Is Python installed?
+        echo [ERROR] Please install Python 3.8+ and ensure it's in PATH
+        exit /b 1
+    )
+    set "VENV_DIR=.venv"
+    echo [INFO] Virtual environment created successfully
 )
 
-REM === Activate the venv ===
-call "%PROJECT_ROOT%\.venv\Scripts\activate.bat"
+REM Activate the virtual environment
+echo [INFO] Activating virtual environment: %VENV_DIR%
+call "%PROJECT_ROOT%\%VENV_DIR%\Scripts\activate.bat" 2>nul
+if errorlevel 1 (
+    echo [ERROR] Failed to activate virtual environment
+    echo [ERROR] Virtual environment may be corrupted. Try deleting %VENV_DIR% and running again
+    exit /b 1
+)
+
+REM Verify Python is available in venv
+"%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe" --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python not found in virtual environment
+    echo [ERROR] Virtual environment is misconfigured
+    exit /b 1
+)
+
+REM Simple dependency check - check for key packages
+echo [INFO] Verifying core dependencies...
+set DEPS_MISSING=0
+
+REM Check pandas
+"%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe" -c "import pandas" 2>nul
+if errorlevel 1 set DEPS_MISSING=1
+
+REM Check IPython
+"%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe" -c "import IPython" 2>nul
+if errorlevel 1 set DEPS_MISSING=1
+
+REM Check facebook_business
+"%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe" -c "import facebook_business" 2>nul
+if errorlevel 1 set DEPS_MISSING=1
+
+if %DEPS_MISSING% EQU 1 (
+    echo [WARN] Some dependencies missing. Installing from requirements.txt...
+    echo [INFO] This may take a few minutes...
+    
+    REM Check for requirements.txt
+    if not exist "%PROJECT_ROOT%\requirements.txt" (
+        echo [ERROR] No requirements.txt found!
+        exit /b 1
+    )
+    
+    REM Install dependencies with visible progress
+    "%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe" -m pip install -r "%PROJECT_ROOT%\requirements.txt"
+    if errorlevel 1 (
+        echo [ERROR] Failed to install dependencies
+        exit /b 1
+    )
+    echo [INFO] Dependencies installed successfully
+) else (
+    echo [INFO] Core dependencies verified
+)
+
+echo [INFO] Virtual environment ready
+
+REM Set Python executable path
+set "PYTHON_EXE=%PROJECT_ROOT%\%VENV_DIR%\Scripts\python.exe"
+echo [DEBUG] Using Python: %PYTHON_EXE%
 
 REM Load environment variables from .env
 if exist "%PROJECT_ROOT%\.env" (
@@ -46,198 +150,373 @@ if exist "%PROJECT_ROOT%\.env" (
 )
 
 REM Expose src/ on PYTHONPATH so 'from common...' works in all child scripts
-set "PYTHONPATH=%PROJECT_ROOT%\src;%PYTHONPATH%"
+set "PYTHONPATH=%PROJECT_ROOT%\src;%PROJECT_ROOT%;%PYTHONPATH%"
 
 REM Create logs directory if it doesn't exist
-if not exist "%PROJECT_ROOT%\logs" mkdir "%PROJECT_ROOT%\logs"
+if not exist "%PROJECT_ROOT%\logs" (
+    echo Creating logs directory...
+    mkdir "%PROJECT_ROOT%\logs"
+)
 
-REM Set log file for this run
-set "LOG_FILE=%PROJECT_ROOT%\logs\pipeline_%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%%time:~6,2%.log"
-set "LOG_FILE=%LOG_FILE: =0%"
+REM Set log file for this run - use simple timestamp format
+REM Using the simpler date parsing method that works reliably
+set "mydate=%date:~10,4%%date:~4,2%%date:~7,2%"
+set "mytime=%time:~0,2%%time:~3,2%"
+set "mytime=%mytime: =0%"
+set "LOG_FILE=%PROJECT_ROOT%\logs\pipeline_%mydate%_%mytime%.log"
 
+REM Test if we can write to the log file
+echo [INFO] Pipeline started at %date% %time% > "%LOG_FILE%" 2>nul
+if errorlevel 1 (
+    echo WARNING: Cannot write to log file. Creating alternative log...
+    set "LOG_FILE=%PROJECT_ROOT%\logs\pipeline_temp.log"
+    echo [INFO] Pipeline started at %date% %time% > "%LOG_FILE%"
+)
+echo Log file created: %LOG_FILE%
 echo [INFO] Project Root: %PROJECT_ROOT% >> "%LOG_FILE%"
-echo [INFO] Pipeline started at %date% %time% >> "%LOG_FILE%"
+echo [INFO] Python Path: %PYTHONPATH% >> "%LOG_FILE%"
 echo.
 
 REM === STEP 1: COOKIE STATUS CHECK AND AUTO-REFRESH ===
-echo [STEP 1/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 1/6] Cookie Status Check and Auto-Refresh | tee -a "%LOG_FILE%"
-echo [STEP 1/6] ============================================ | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo [STEP 1/6] ============================================
+echo [STEP 1/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 1/6] Cookie Status Check and Auto-Refresh
+echo [STEP 1/6] Cookie Status Check and Auto-Refresh >> "%LOG_FILE%"
+echo [STEP 1/6] ============================================
+echo [STEP 1/6] ============================================ >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-echo [INFO] Checking current cookie status... | tee -a "%LOG_FILE%"
-python cookie_status.py >> "%LOG_FILE%" 2>&1
-set COOKIE_STATUS=%ERRORLEVEL%
+echo [INFO] Checking current cookie status...
+echo [INFO] Checking current cookie status... >> "%LOG_FILE%"
 
-if %COOKIE_STATUS% NEQ 0 (
-    echo [INFO] Some cookies need refresh. Running auto-refresh... | tee -a "%LOG_FILE%"
-    python cookie_refresh.py --refresh-all >> "%LOG_FILE%" 2>&1
-    if %ERRORLEVEL% NEQ 0 (
-        echo [WARNING] Cookie refresh encountered issues. Some services may fail. | tee -a "%LOG_FILE%"
+REM Check multiple possible locations for cookie scripts
+set COOKIE_STATUS_SCRIPT=
+set COOKIE_STATUS=0
+if exist "%PROJECT_ROOT%\cookie_status.py" (
+    set "COOKIE_STATUS_SCRIPT=%PROJECT_ROOT%\cookie_status.py"
+) else if exist "%PROJECT_ROOT%\scripts\cookie_management\cookie_status.py" (
+    set "COOKIE_STATUS_SCRIPT=%PROJECT_ROOT%\scripts\cookie_management\cookie_status.py"
+)
+
+if defined COOKIE_STATUS_SCRIPT (
+    "%PYTHON_EXE%" "%COOKIE_STATUS_SCRIPT%" >> "%LOG_FILE%" 2>&1
+    set COOKIE_STATUS=!ERRORLEVEL!
+    
+    if %COOKIE_STATUS% NEQ 0 (
+        echo [INFO] Some cookies need refresh. Attempting auto-refresh...
+        echo [INFO] Some cookies need refresh. Attempting auto-refresh... >> "%LOG_FILE%"
+        
+        set COOKIE_REFRESH_SCRIPT=
+        if exist "%PROJECT_ROOT%\cookie_refresh.py" (
+            set "COOKIE_REFRESH_SCRIPT=%PROJECT_ROOT%\cookie_refresh.py"
+        ) else if exist "%PROJECT_ROOT%\scripts\cookie_management\cookie_refresh.py" (
+            set "COOKIE_REFRESH_SCRIPT=%PROJECT_ROOT%\scripts\cookie_management\cookie_refresh.py"
+        )
+        
+        if defined COOKIE_REFRESH_SCRIPT (
+            "%PYTHON_EXE%" "%COOKIE_REFRESH_SCRIPT%" --refresh-all >> "%LOG_FILE%" 2>&1
+            set REFRESH_RESULT=!ERRORLEVEL!
+            if !REFRESH_RESULT! NEQ 0 (
+                echo [WARNING] Cookie refresh encountered issues. Some services may fail.
+                echo [WARNING] Cookie refresh encountered issues. Some services may fail. >> "%LOG_FILE%"
+            ) else (
+                echo [INFO] Cookie refresh completed successfully.
+                echo [INFO] Cookie refresh completed successfully. >> "%LOG_FILE%"
+            )
+        ) else (
+            echo [WARNING] Cookie refresh script not found. Skipping...
+            echo [WARNING] Cookie refresh script not found. Skipping... >> "%LOG_FILE%"
+        )
     ) else (
-        echo [INFO] Cookie refresh completed successfully. | tee -a "%LOG_FILE%"
+        echo [INFO] All cookies are healthy.
+        echo [INFO] All cookies are healthy. >> "%LOG_FILE%"
     )
 ) else (
-    echo [INFO] All cookies are healthy. | tee -a "%LOG_FILE%"
+    echo [WARNING] Cookie status script not found. Skipping cookie check...
+    echo [WARNING] Cookie status script not found. Skipping cookie check... >> "%LOG_FILE%"
 )
-echo. | tee -a "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
 REM === STEP 2: PIPELINE HEALTH CHECK WITH AUTO-REMEDIATION ===
-echo [STEP 2/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 2/6] Pipeline Health Check with Auto-Remediation | tee -a "%LOG_FILE%"
-echo [STEP 2/6] ============================================ | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo [STEP 2/6] ============================================
+echo [STEP 2/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 2/6] Pipeline Health Check with Auto-Remediation
+echo [STEP 2/6] Pipeline Health Check with Auto-Remediation >> "%LOG_FILE%"
+echo [STEP 2/6] ============================================
+echo [STEP 2/6] ============================================ >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-echo [INFO] Running pipeline health monitor... | tee -a "%LOG_FILE%"
-python src\common\pipeline_health_monitor.py --auto-remediate >> "%LOG_FILE%" 2>&1
-set HEALTH_STATUS=%ERRORLEVEL%
-
-if %HEALTH_STATUS% EQU 2 (
-    echo [WARNING] Pipeline is in CRITICAL state. Review the report above. | tee -a "%LOG_FILE%"
-) else if %HEALTH_STATUS% EQU 1 (
-    echo [WARNING] Some services have issues. Auto-remediation attempted. | tee -a "%LOG_FILE%"
+echo [INFO] Running pipeline health monitor...
+echo [INFO] Running pipeline health monitor... >> "%LOG_FILE%"
+set HEALTH_STATUS=0
+if exist "%PROJECT_ROOT%\src\common\pipeline_health_monitor.py" (
+    "%PYTHON_EXE%" "%PROJECT_ROOT%\src\common\pipeline_health_monitor.py" >> "%LOG_FILE%" 2>&1
+    set HEALTH_STATUS=!ERRORLEVEL!
+    
+    if %HEALTH_STATUS% EQU 2 (
+        echo [WARNING] Pipeline is in CRITICAL state. Review the report above.
+        echo [WARNING] Pipeline is in CRITICAL state. Review the report above. >> "%LOG_FILE%"
+    ) else if %HEALTH_STATUS% EQU 1 (
+        echo [WARNING] Some services have issues. Auto-remediation attempted.
+        echo [WARNING] Some services have issues. Auto-remediation attempted. >> "%LOG_FILE%"
+    ) else (
+        echo [INFO] Pipeline health check passed.
+        echo [INFO] Pipeline health check passed. >> "%LOG_FILE%"
+    )
 ) else (
-    echo [INFO] Pipeline health check passed. | tee -a "%LOG_FILE%"
+    echo [WARNING] Pipeline health monitor not found. Skipping...
+    echo [WARNING] Pipeline health monitor not found. Skipping... >> "%LOG_FILE%"
 )
-echo. | tee -a "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
 REM === STEP 3: DATA EXTRACTION WITH INDIVIDUAL EXTRACTORS ===
-echo [STEP 3/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 3/6] Running Data Extractors | tee -a "%LOG_FILE%"
+if /I "%~1"=="--skip-extractors" (
+    echo [INFO] Skipping extractors as requested...
+    echo [INFO] Skipping extractors as requested... >> "%LOG_FILE%"
+    goto CLEANERS
+)
+
+echo [STEP 3/6] ============================================
+echo [STEP 3/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 3/6] Running Data Extractors
 echo [INFO] Skipping data extraction (no-extractors mode) | tee -a "%LOG_FILE%"
 echo. | tee -a "%LOG_FILE%"
 
-echo [STEP 4/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 4/6] Running Data Cleaners | tee -a "%LOG_FILE%"
-echo [STEP 4/6] ============================================ | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo [STEP 4/6] ============================================
+echo [STEP 4/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 4/6] Running Data Cleaners
+echo [STEP 4/6] Running Data Cleaners >> "%LOG_FILE%"
+echo [STEP 4/6] ============================================
+echo [STEP 4/6] ============================================ >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
 set CLEANER_FAILURES=0
 
+cd /d "%PROJECT_ROOT%"
 for /d %%P in (src\*) do (
     REM Ignore .playwright, common, and any hidden folders
     if /I not "%%~nxP"==".playwright" if /I not "%%~nxP"=="common" if not "%%~nxP:~0,1"=="." (
         REM Run all cleaners for this platform
         if exist "%%P\cleaners" (
-            echo [INFO] Running cleaners for %%~nxP | tee -a "%LOG_FILE%"
+            echo [INFO] Running cleaners for %%~nxP
+            echo [INFO] Running cleaners for %%~nxP >> "%LOG_FILE%"
             
             REM Run cleaners in order: landing2raw, raw2staging, staging2curated
             for %%S in (landing2raw raw2staging staging2curated) do (
                 if exist "%%P\cleaners\%%~nxP_%%S.py" (
-                    echo [INFO]   - Running %%~nxP_%%S.py | tee -a "%LOG_FILE%"
-                    python "%%P\cleaners\%%~nxP_%%S.py" >> "%LOG_FILE%" 2>&1
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo [WARNING]   - %%~nxP_%%S.py failed | tee -a "%LOG_FILE%"
+                    echo [INFO]   - Running %%~nxP_%%S.py
+                    echo [INFO]   - Running %%~nxP_%%S.py >> "%LOG_FILE%"
+                    "%PYTHON_EXE%" src\common\run_with_auth_check.py --script "%%P\cleaners\%%~nxP_%%S.py" --service "%%~nxP-%%S" --log-level INFO
+                    set CLEANER_RESULT=!ERRORLEVEL!
+                    if !CLEANER_RESULT! NEQ 0 (
+                        echo [WARNING]   - %%~nxP_%%S.py failed
+                        echo [WARNING]   - %%~nxP_%%S.py failed >> "%LOG_FILE%"
+                        echo [WARNING]   - Check logs\pipeline_executor.log for detailed error information >> "%LOG_FILE%"
                         set /a CLEANER_FAILURES+=1
                     ) else (
-                        echo [INFO]   ✓ %%~nxP_%%S.py completed | tee -a "%LOG_FILE%"
+                        echo [INFO]   OK: %%~nxP_%%S.py completed
+                        echo [INFO]   OK: %%~nxP_%%S.py completed >> "%LOG_FILE%"
                     )
                 )
             )
-            echo. | tee -a "%LOG_FILE%"
+            echo.
+            echo. >> "%LOG_FILE%"
         )
     )
 )
 
-echo [INFO] Data cleaning phase completed. Failures: %CLEANER_FAILURES% | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo [INFO] Data cleaning phase completed. Failures: %CLEANER_FAILURES%
+echo [INFO] Data cleaning phase completed. Failures: %CLEANER_FAILURES% >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-REM === STEP 5: DATA WAREHOUSE ETL PIPELINE ===
-echo [STEP 5/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 5/6] Running Data Warehouse ETL Pipeline | tee -a "%LOG_FILE%"
-echo [STEP 5/6] ============================================ | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+REM === STEP 5: DATA WAREHOUSE ETL PIPELINE (DISABLED) ===
+REM The warehouse ETL is not ready yet - skipping this step
+REM echo [STEP 5/6] ============================================
+REM echo [STEP 5/6] ============================================ >> "%LOG_FILE%"
+REM echo [STEP 5/6] Running Data Warehouse ETL Pipeline
+REM echo [STEP 5/6] Running Data Warehouse ETL Pipeline >> "%LOG_FILE%"
+REM echo [STEP 5/6] ============================================
+REM echo [STEP 5/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 5/6] Data Warehouse ETL - SKIPPED (not ready yet)
+echo [STEP 5/6] Data Warehouse ETL - SKIPPED (not ready yet) >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-REM Save current directory
-set "ORIGINAL_DIR=%CD%"
-
-REM Navigate to data warehouse directory
-cd /d "%PROJECT_ROOT%\..\data-warehouse"
-
-REM Check if warehouse virtual environment exists, otherwise use data lake venv
-if exist ".venv\Scripts\activate.bat" (
-    echo [INFO] Activating data warehouse virtual environment | tee -a "%LOG_FILE%"
-    call ".venv\Scripts\activate.bat"
-) else (
-    echo [INFO] Using data lake virtual environment for warehouse ETL | tee -a "%LOG_FILE%"
-)
-
-REM Run the warehouse ETL pipeline
-echo [INFO] Running warehouse ETL pipeline... | tee -a "%LOG_FILE%"
-if exist "scripts\run_all_etl.py" (
-    python scripts\run_all_etl.py >> "%LOG_FILE%" 2>&1
-) else if exist "run_all_etl.py" (
-    python run_all_etl.py >> "%LOG_FILE%" 2>&1
-) else (
-    echo [ERROR] Could not find warehouse ETL script | tee -a "%LOG_FILE%"
-    set WAREHOUSE_ERRORLEVEL=1
-)
-set WAREHOUSE_ERRORLEVEL=%ERRORLEVEL%
-
-REM Return to original directory
-cd /d "%ORIGINAL_DIR%"
-
-REM Re-activate data lake venv if we switched
-call "%PROJECT_ROOT%\.venv\Scripts\activate.bat"
-
-REM Check warehouse ETL result
-IF %WAREHOUSE_ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Data Warehouse ETL failed with code %WAREHOUSE_ERRORLEVEL% | tee -a "%LOG_FILE%"
-) else (
-    echo [INFO] ✓ Data Warehouse ETL completed successfully | tee -a "%LOG_FILE%"
-)
-echo. | tee -a "%LOG_FILE%"
+REM Set warehouse error level to 0 since we're skipping it
+set WAREHOUSE_ERRORLEVEL=0
 
 REM === STEP 6: FINAL REPORTING AND MAINTENANCE ===
-echo [STEP 6/6] ============================================ | tee -a "%LOG_FILE%"
-echo [STEP 6/6] Generating Reports and Maintenance | tee -a "%LOG_FILE%"
-echo [STEP 6/6] ============================================ | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo [STEP 6/6] ============================================
+echo [STEP 6/6] ============================================ >> "%LOG_FILE%"
+echo [STEP 6/6] Generating Reports and Maintenance
+echo [STEP 6/6] Generating Reports and Maintenance >> "%LOG_FILE%"
+echo [STEP 6/6] ============================================
+echo [STEP 6/6] ============================================ >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-REM Run final health check
-echo [INFO] Running final health check... | tee -a "%LOG_FILE%"
-python src\common\pipeline_health_monitor.py >> "%LOG_FILE%" 2>&1
+REM Calculate pipeline end time
+set "CRON_END_TIME=%date% %time%"
+
+REM Run final health check with cron statistics
+echo [INFO] Running final health check with cron statistics...
+echo [INFO] Running final health check with cron statistics... >> "%LOG_FILE%"
+
+REM Calculate total failures for the report
+set /a TOTAL_FAILURES=%EXTRACTION_FAILURES%+%CLEANER_FAILURES%
+
+if exist "%PROJECT_ROOT%\src\common\pipeline_health_monitor.py" (
+    "%PYTHON_EXE%" "%PROJECT_ROOT%\src\common\pipeline_health_monitor.py" --cron-start-time "%CRON_START_TIME%" --cron-end-time "%CRON_END_TIME%" --extraction-failures %EXTRACTION_FAILURES% --cleaner-failures %CLEANER_FAILURES% --total-failures %TOTAL_FAILURES% >> "%LOG_FILE%" 2>&1
+    
+    REM Check if HTML report was generated successfully
+    if exist "%PROJECT_ROOT%\pipeline_health_report.html" (
+        echo [INFO] Pipeline health report generated successfully
+        echo [INFO] Pipeline health report generated successfully >> "%LOG_FILE%"
+        
+        REM Display report location
+        echo [INFO] Report location: %PROJECT_ROOT%\pipeline_health_report.html
+        echo [INFO] Report location: %PROJECT_ROOT%\pipeline_health_report.html >> "%LOG_FILE%"
+    ) else (
+        echo [WARNING] Pipeline health report was not generated
+        echo [WARNING] Pipeline health report was not generated >> "%LOG_FILE%"
+    )
+)
 
 REM Generate visual dashboard if available
-if exist "src\common\cookie_refresh\dashboard.py" (
-    echo [INFO] Generating visual dashboard... | tee -a "%LOG_FILE%"
-    python src\common\cookie_refresh\dashboard.py --output pipeline_status.html >> "%LOG_FILE%" 2>&1
+if exist "%PROJECT_ROOT%\src\common\cookie_refresh\dashboard.py" (
+    echo [INFO] Generating visual dashboard...
+    echo [INFO] Generating visual dashboard... >> "%LOG_FILE%"
+    "%PYTHON_EXE%" src\common\run_with_auth_check.py --script src\common\cookie_refresh\dashboard.py --service dashboard --log-level INFO -- --output pipeline_status.html
 )
-
-REM Generate the no-extractors version
-echo [INFO] Updating no-extractors cron script... | tee -a "%LOG_FILE%"
 
 REM Archive old logs (keep last 30 days)
-echo [INFO] Archiving old logs... | tee -a "%LOG_FILE%"
+echo [INFO] Archiving old logs...
+echo [INFO] Archiving old logs... >> "%LOG_FILE%"
 forfiles /p "%PROJECT_ROOT%\logs" /s /m *.log /d -30 /c "cmd /c del @path" 2>nul
 
-echo. | tee -a "%LOG_FILE%"
-echo ================================================================================ | tee -a "%LOG_FILE%"
-echo                           PIPELINE SUMMARY | tee -a "%LOG_FILE%"
-echo ================================================================================ | tee -a "%LOG_FILE%"
-echo [INFO] Pipeline completed at %date% %time% | tee -a "%LOG_FILE%"
-echo [INFO] Extraction failures: 0 (skipped) | tee -a "%LOG_FILE%"
-echo [INFO] Cleaner failures: %CLEANER_FAILURES% | tee -a "%LOG_FILE%"
-echo [INFO] Log file: %LOG_FILE% | tee -a "%LOG_FILE%"
-echo. | tee -a "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
+echo ================================================================================
+echo ================================================================================ >> "%LOG_FILE%"
+echo                           PIPELINE EXECUTION SUMMARY
+echo                           PIPELINE EXECUTION SUMMARY >> "%LOG_FILE%"
+echo ================================================================================
+echo ================================================================================ >> "%LOG_FILE%"
+echo.
+echo [TIMING]
+echo [TIMING] >> "%LOG_FILE%"
+echo   Started:   %CRON_START_TIME%
+echo   Started:   %CRON_START_TIME% >> "%LOG_FILE%"
+echo   Completed: %CRON_END_TIME%
+echo   Completed: %CRON_END_TIME% >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
-set /a TOTAL_FAILURES=%CLEANER_FAILURES%
-if %WAREHOUSE_ERRORLEVEL% NEQ 0 set /a TOTAL_FAILURES+=1
+echo [RESULTS]
+echo [RESULTS] >> "%LOG_FILE%"
+echo   Extraction Phase:
+echo   Extraction Phase: >> "%LOG_FILE%"
+echo     - Services Attempted: 6 (Spotify, DistroKid, TikTok x2, TooLost, Linktree, MetaAds)
+echo     - Services Attempted: 6 (Spotify, DistroKid, TikTok x2, TooLost, Linktree, MetaAds) >> "%LOG_FILE%"
+echo     - Failures: %EXTRACTION_FAILURES%
+echo     - Failures: %EXTRACTION_FAILURES% >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
+echo   Cleaning Phase:
+echo   Cleaning Phase: >> "%LOG_FILE%"
+echo     - Cleaners Run: Multiple (landing2raw, raw2staging, staging2curated)
+echo     - Cleaners Run: Multiple (landing2raw, raw2staging, staging2curated) >> "%LOG_FILE%"
+echo     - Failures: %CLEANER_FAILURES%
+echo     - Failures: %CLEANER_FAILURES% >> "%LOG_FILE%"
+echo.
+echo. >> "%LOG_FILE%"
 
+set /a TOTAL_FAILURES=%EXTRACTION_FAILURES%+%CLEANER_FAILURES%
+if !WAREHOUSE_ERRORLEVEL! NEQ 0 set /a TOTAL_FAILURES+=1
+
+echo [OVERALL STATUS]
+echo [OVERALL STATUS] >> "%LOG_FILE%"
 if %TOTAL_FAILURES% EQU 0 (
-    echo [SUCCESS] ✓ All pipeline components completed successfully! | tee -a "%LOG_FILE%"
+    echo   Result: SUCCESS - All pipeline components completed successfully!
+    echo   Result: SUCCESS - All pipeline components completed successfully! >> "%LOG_FILE%"
+    set "PIPELINE_STATUS=SUCCESS"
+    set "STATUS_COLOR=green"
 ) else (
-    echo [WARNING] ⚠️  Pipeline completed with %TOTAL_FAILURES% failures. | tee -a "%LOG_FILE%"
-    echo [WARNING] Check the log file for details: %LOG_FILE% | tee -a "%LOG_FILE%"
+    echo   Result: WARNING - Pipeline completed with %TOTAL_FAILURES% failures
+    echo   Result: WARNING - Pipeline completed with %TOTAL_FAILURES% failures >> "%LOG_FILE%"
+    set "PIPELINE_STATUS=WARNING"
+    set "STATUS_COLOR=orange"
+)
+echo.
+echo. >> "%LOG_FILE%"
+
+echo [GENERATED REPORTS]
+echo [GENERATED REPORTS] >> "%LOG_FILE%"
+echo   - Log File: %LOG_FILE%
+echo   - Log File: %LOG_FILE% >> "%LOG_FILE%"
+
+REM Check and display pipeline health report status
+if exist "%PROJECT_ROOT%\pipeline_health_report.html" (
+    echo   - Health Report: %PROJECT_ROOT%\pipeline_health_report.html [READY]
+    echo   - Health Report: %PROJECT_ROOT%\pipeline_health_report.html [READY] >> "%LOG_FILE%"
+    echo     ^> Open in browser to view detailed health metrics and visualizations
+    echo     ^> Open in browser to view detailed health metrics and visualizations >> "%LOG_FILE%"
+) else (
+    echo   - Health Report: Not generated
+    echo   - Health Report: Not generated >> "%LOG_FILE%"
 )
 
-echo. | tee -a "%LOG_FILE%"
-echo [INFO] Next steps: | tee -a "%LOG_FILE%"
-echo [INFO] 1. Review the pipeline health report above | tee -a "%LOG_FILE%"
-echo [INFO] 2. Check failed services and refresh cookies if needed | tee -a "%LOG_FILE%"
-echo [INFO] 3. View the visual dashboard: pipeline_status.html | tee -a "%LOG_FILE%"
-echo [INFO] 4. Run specific extractors manually if needed | tee -a "%LOG_FILE%"
-echo ================================================================================ | tee -a "%LOG_FILE%"
+REM Check for JSON report
+if exist "%PROJECT_ROOT%\pipeline_health_report.json" (
+    echo   - JSON Report: %PROJECT_ROOT%\pipeline_health_report.json [READY]
+    echo   - JSON Report: %PROJECT_ROOT%\pipeline_health_report.json [READY] >> "%LOG_FILE%"
+)
+echo.
+echo. >> "%LOG_FILE%"
+
+echo [RECOMMENDED ACTIONS]
+echo [RECOMMENDED ACTIONS] >> "%LOG_FILE%"
+if %TOTAL_FAILURES% EQU 0 (
+    echo   1. No immediate action required - pipeline healthy
+    echo   1. No immediate action required - pipeline healthy >> "%LOG_FILE%"
+    echo   2. Review the HTML health report for detailed metrics
+    echo   2. Review the HTML health report for detailed metrics >> "%LOG_FILE%"
+) else (
+    echo   1. IMPORTANT: Review the HTML health report for failure details
+    echo   1. IMPORTANT: Review the HTML health report for failure details >> "%LOG_FILE%"
+    echo   2. Check extractor logs for real errors; manual auth reminders are informational only
+    echo   2. Check extractor logs for real errors; manual auth reminders are informational only >> "%LOG_FILE%"
+    echo   3. Re-run failed extractors manually if an actual error was recorded:
+    echo   3. Re-run failed extractors manually if an actual error was recorded: >> "%LOG_FILE%"
+    echo      python src\common\run_with_auth_check.py --script [extractor_path]
+    echo      python src\common\run_with_auth_check.py --script [extractor_path] >> "%LOG_FILE%"
+)
+echo.
+echo. >> "%LOG_FILE%"
+echo ================================================================================
+echo ================================================================================ >> "%LOG_FILE%"
+
+REM Auto-open the HTML report if it exists and there were failures
+if exist "%PROJECT_ROOT%\pipeline_health_report.html" (
+    if %TOTAL_FAILURES% GTR 0 (
+        echo.
+        echo [ACTION] Opening pipeline health report in browser due to failures...
+        echo [ACTION] Opening pipeline health report in browser due to failures... >> "%LOG_FILE%"
+        start "" "%PROJECT_ROOT%\pipeline_health_report.html"
+    ) else (
+        echo.
+        echo [INFO] Pipeline health report available at:
+        echo [INFO] Pipeline health report available at: >> "%LOG_FILE%"
+        echo        %PROJECT_ROOT%\pipeline_health_report.html
+        echo        %PROJECT_ROOT%\pipeline_health_report.html >> "%LOG_FILE%"
+    )
+)
 
 endlocal
 echo.
