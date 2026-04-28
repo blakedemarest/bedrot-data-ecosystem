@@ -24,7 +24,7 @@ from typing import Tuple
 import pandas as pd
 
 PLATFORM = "spotify"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 STAGING_DIR = PROJECT_ROOT / "3_staging" / PLATFORM / "songs"
 CURATED_DIR = PROJECT_ROOT / "4_curated"
 ARCHIVE_DIR = PROJECT_ROOT / "5_archive" / PLATFORM / "songs"

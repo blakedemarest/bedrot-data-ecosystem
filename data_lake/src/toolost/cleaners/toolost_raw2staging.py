@@ -70,11 +70,11 @@ display(df.head())
 STAGING.mkdir(parents=True, exist_ok=True)
 out_csv = STAGING / "daily_streams_toolost.csv"
 df.to_csv(out_csv, index=False)
-print(f"💾 saved → {out_csv}")
+print(f"[SAVED] {out_csv}")
 
 assert df["combined_streams"].sum() == df["spotify_streams"].sum() + df["apple_streams"].sum(), \
        "sanity check failed: combined ≠ components"
-print("✅ QC passed – totals align")
+print("[OK] QC passed -- totals align")
 
 
 # %%

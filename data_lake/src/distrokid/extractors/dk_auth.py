@@ -47,7 +47,7 @@ DK_PASSWORD, DK_PASSWORD_ENV = _resolve_credential("password")
 
 
 def _launch_context(p):
-    browser = p.chromium.launch_persistent_context(SESSION_DIR, headless=False)
+    browser = p.chromium.launch_persistent_context(SESSION_DIR, channel="chrome", headless=False)
     load_cookies(browser, "distrokid")
     page = browser.new_page()
     return browser, page
@@ -197,6 +197,7 @@ def test_login_distrokid():
         try:
             browser = p.chromium.launch_persistent_context(
                 SESSION_DIR,
+                channel="chrome",
                 headless=True
             )
             # Inject cookies to validate session without login

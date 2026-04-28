@@ -60,7 +60,7 @@ def _wait_for_any_selector(page, selectors, timeout=15000):
 
 
 def _setup_browser(p):
-    browser = p.chromium.launch(headless=False)
+    browser = p.chromium.launch(channel="chrome", headless=False)
     context = browser.new_context()
     load_cookies(context, "linktree")
     page = context.new_page()

@@ -73,7 +73,12 @@ FILTER_12M_LABEL = "label[for='1year'], :text('12 months'), input[value='1year']
 # Done button with specific class pattern
 FILTER_DONE_SELECTOR = "span:has-text('Done')[class*='button-primary__inner'], button:has-text('Done')"
 # Download button contains SVG with circular download icon
-CSV_DOWNLOAD_BUTTON = "button:has(svg[viewBox='0 0 24 24'] path[d*='M12 3a9'])"
+CSV_DOWNLOAD_BUTTON_SELECTORS = [
+    "button:has(svg[viewBox='0 0 24 24'] path[d*='M12 3a9'])",  # SVG path (original)
+    "button[aria-label*='download' i]",                          # aria-label
+    "button[aria-label*='csv' i]",                               # csv-specific
+    "button[data-testid*='download']",                           # testid
+]
 
 # ---------------------------------------------------------------------------
 # Song Metrics Constants
@@ -273,7 +278,13 @@ def _apply_12_month_filter(page):
     if not summary_confirmed:
         print("[WARN] Could not confirm 12-month time range; continuing anyway")
 
-    page.wait_for_selector(CSV_DOWNLOAD_BUTTON)
+    # Wait for any download button selector to appear
+    for sel in CSV_DOWNLOAD_BUTTON_SELECTORS:
+        try:
+            page.wait_for_selector(sel, timeout=5000)
+            break
+        except Exception:
+            continue
 
 
 
@@ -283,8 +294,17 @@ def _download_csv(page, artist_id: str) -> Path:
     suggested_name = f"spotify_audience_{artist_id}_{timestamp}.csv"
     dest_path = LANDING_DIR / suggested_name
 
-    with page.expect_download() as dl_info:
-        _click(page, CSV_DOWNLOAD_BUTTON, desc="CSV download button")
+    # Try each selector until one works
+    download_selector = None
+    for sel in CSV_DOWNLOAD_BUTTON_SELECTORS:
+        if page.locator(sel).first.is_visible():
+            download_selector = sel
+            break
+    if download_selector is None:
+        download_selector = CSV_DOWNLOAD_BUTTON_SELECTORS[0]  # fallback to original
+
+    with page.expect_download(timeout=90000) as dl_info:
+        _click(page, download_selector, desc="CSV download button")
     download = dl_info.value
     download.save_as(dest_path)
     print(f"[SAVED] CSV -> {dest_path.relative_to(PROJECT_ROOT)}")
@@ -460,7 +480,10 @@ def main() -> None:
         # Use persistent context like other extractors
         context = p.chromium.launch_persistent_context(
             str(SESSION_DIR),
+            channel="chrome",
             headless=False,
+            accept_downloads=True,
+            downloads_path=str(LANDING_DIR),
             viewport={"width": 1280, "height": 900},
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

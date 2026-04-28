@@ -20,7 +20,7 @@ from pathlib import Path
 import pandas as pd
 
 PLATFORM = "linktree"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 
 # Use environment variables for zone names
 RAW_ZONE = os.environ.get("RAW_ZONE", "raw")

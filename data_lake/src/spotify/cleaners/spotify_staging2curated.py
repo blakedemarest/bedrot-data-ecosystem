@@ -29,7 +29,7 @@ from typing import List
 import pandas as pd
 
 # %% Imports & Constants -----------------------------------------------------
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 
 STAGING_DIR = PROJECT_ROOT / "3_staging" / "spotify" / "audience"
 CURATED_DIR = PROJECT_ROOT / "4_curated"

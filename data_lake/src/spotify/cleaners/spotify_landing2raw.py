@@ -23,7 +23,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 PLATFORM = "spotify"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 LANDING_DIR = PROJECT_ROOT / "1_landing" / PLATFORM / "audience"
 RAW_DIR = PROJECT_ROOT / "2_raw" / PLATFORM / "audience"
 

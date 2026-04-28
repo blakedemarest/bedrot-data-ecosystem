@@ -24,6 +24,7 @@ APPLE_API = "https://toolost.com/api/portal/analytics/apple/?release=&date=thisY
 async def _launch_browser(p):
     browser = await p.chromium.launch_persistent_context(
         SESSION_DIR,
+        channel="chrome",
         headless=False,
         viewport={"width": 1280, "height": 900},
     )

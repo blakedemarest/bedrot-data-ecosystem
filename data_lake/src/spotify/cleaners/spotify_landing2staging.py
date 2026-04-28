@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 # Constants
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 LANDING_DIR = PROJECT_ROOT / "1_landing" / "spotify" / "audience"
 STAGING_DIR = PROJECT_ROOT / "3_staging" / "spotify" / "audience"
 

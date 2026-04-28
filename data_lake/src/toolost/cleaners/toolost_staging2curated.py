@@ -1,11 +1,16 @@
 # %%
 # ─── Cell 1: Imports & Environment Setup ────────────────────────────────────────
 # Merge TooLost daily streams into the curated dataset and archive prior versions.
-import os
+import os, sys
 from pathlib import Path
 import datetime, shutil
 from dotenv import load_dotenv
 import pandas as pd
+
+# Ensure src/ is on sys.path for common module imports
+_src = str(Path(__file__).resolve().parents[2])
+if _src not in sys.path:
+    sys.path.insert(0, _src)
 
 from common.utils.hash_helpers import df_hash, file_hash
 

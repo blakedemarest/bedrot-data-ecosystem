@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 PLATFORM = "linktree"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 
 # Use environment variables for zone names
 LANDING_ZONE = os.environ.get("LANDING_ZONE", "landing")

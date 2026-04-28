@@ -30,6 +30,7 @@ async def _launch_browser(p):
     os.makedirs(SESSION_DIR, exist_ok=True)
     browser = await p.chromium.launch_persistent_context(
         SESSION_DIR,
+        channel="chrome",
         headless=True,  # Run headless for automation
         viewport={"width": 1280, "height": 900},
         user_agent=(

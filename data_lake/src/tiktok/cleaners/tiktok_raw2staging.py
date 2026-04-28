@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 PLATFORM = "tiktok"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 RAW_DIR = PROJECT_ROOT / "2_raw" / PLATFORM
 STAGING_DIR = PROJECT_ROOT / "3_staging"
 

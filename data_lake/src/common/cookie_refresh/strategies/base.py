@@ -173,6 +173,7 @@ class BaseRefreshStrategy(ABC):
             with sync_playwright() as p:
                 # Launch browser
                 browser = p.chromium.launch(
+                    channel="chrome",
                     headless=self.headless,
                     args=['--disable-blink-features=AutomationControlled']
                 )

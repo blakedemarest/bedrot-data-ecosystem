@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 
 def resolve_zone_path(env_var: str, default: str) -> Path:
     value = os.getenv(env_var, default)

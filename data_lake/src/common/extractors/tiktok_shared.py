@@ -200,6 +200,7 @@ def run_extraction(
     os.makedirs(user_data_dir, exist_ok=True)
     context = playwright.chromium.launch_persistent_context(
         user_data_dir,
+        channel="chrome",
         headless=False,
         viewport={"width": 1440, "height": 900},
         user_agent=(

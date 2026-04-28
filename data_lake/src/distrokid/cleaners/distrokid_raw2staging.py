@@ -66,7 +66,7 @@ STAGING.mkdir(parents=True, exist_ok=True)
 out_csv = STAGING / "daily_streams_distrokid.csv"
 merged.to_csv(out_csv, index=False)
 display(merged.head())
-print(f"💾 saved → {out_csv}")
+print(f"[SAVED] {out_csv}")
 
 
 # %%
@@ -76,7 +76,7 @@ csvs = sorted(finance_dir.glob("dk_bank_details_*.csv"), key=lambda p: p.stat().
 if csvs:
     bank_dst = STAGING / "dk_bank_details.csv"
     bank_dst.write_bytes(csvs[0].read_bytes())
-    print(f"💾 bank details copied → {bank_dst}")
+    print(f"[SAVED] bank details copied -> {bank_dst}")
 
 
 # %%

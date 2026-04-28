@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 PLATFORM = "spotify"
-PROJECT_ROOT = Path(os.environ["PROJECT_ROOT"])
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "")) or Path(__file__).resolve().parents[3]
 LANDING_DIR = PROJECT_ROOT / "1_landing" / PLATFORM / "songs"
 RAW_DIR = PROJECT_ROOT / "2_raw" / PLATFORM / "songs"
 
