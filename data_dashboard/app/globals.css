@@ -26,51 +26,70 @@
     --radius: 0.5rem;
   }
 
+  /* BEDROT Duochromatic Dark Theme (Data Ecosystem - Green Accent) */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Background: #172430 -> HSL 210 30% 14% */
+    --background: 210 30% 9%;
+    --foreground: 210 20% 93%;
+
+    /* Card: #172430 */
+    --card: 210 30% 14%;
+    --card-foreground: 210 20% 93%;
+
+    --popover: 210 30% 9%;
+    --popover-foreground: 210 20% 93%;
+
+    /* Primary: Green accent #00ff88 -> HSL 152 100% 50% */
+    --primary: 152 100% 50%;
+    --primary-foreground: 210 30% 5%;
+
+    /* Secondary: #1c2d3d */
+    --secondary: 210 30% 17%;
+    --secondary-foreground: 210 20% 93%;
+
+    /* Muted: #6a7a88 */
+    --muted: 210 30% 17%;
+    --muted-foreground: 210 15% 47%;
+
+    /* Accent: Green #00ff88 */
+    --accent: 152 100% 50%;
+    --accent-foreground: 210 30% 5%;
+
+    /* Destructive: #ff4466 */
+    --destructive: 350 100% 63%;
+    --destructive-foreground: 210 20% 93%;
+
+    /* Border: #2f4155 */
+    --border: 210 30% 26%;
+    --input: 210 30% 17%;
+
+    /* Ring: Green accent for focus */
+    --ring: 152 100% 50%;
   }
 }
 
 @layer base {
   body {
-    @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-white;
+    @apply bg-white text-gray-900 dark:bg-bedrot-bg-0 dark:text-bedrot-text-primary;
   }
 }
 
-/* Custom scrollbar */
+/* BEDROT Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  @apply bg-bedrot-bg-0;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  @apply bg-bedrot-accent rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500 dark:bg-gray-500;
+  @apply bg-bedrot-accent-hover;
 }
 
 /* Loading animation */
@@ -84,7 +103,7 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.1) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(0, 255, 136, 0.1) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
