@@ -405,3 +405,5 @@ The data pipeline generates several types of logs in the `logs/` directory:
 - Data quality concerns
 - Processing bottlenecks
 - May indicate auth OR system issues
+
+@agents.md

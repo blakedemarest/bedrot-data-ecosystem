@@ -197,4 +197,5 @@ npm run dev
 
 ---
 
+## FOR AGENTS
 Update this summary alongside component `AGENTS.md` files whenever new connectors, schema changes, or deployment workflows land. Emphasize env-driven configuration, ASCII-safe logging, and automated validation as the platform evolves.
