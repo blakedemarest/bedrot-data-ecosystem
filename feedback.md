@@ -11,9 +11,7 @@ to fix. A failure caused by a global skill or the global CLAUDE.md goes in `C:\U
 **How to log:** in the same turn, before anything else, without asking. Use the script, so the format
 stays valid and Blake's words are kept exactly:
 
-    python C:\Users\Earth\.claude\skills\bedrot-repo\scripts\bedrot_repo.py log --repo "C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem" --type <type> --name <resource> --verbatim "<Blake's exact words>" --notes "<what went wrong and what to fix>"
-
-Corrections go here, not to Claude's memory. A critical correction saved to memory instead is a failure.
+    python C:\Users\Earth\.claude\skills\bedrot-repo\scripts\bedrot_repo.py log --repo "C:\Users\Earth\BEDROT PRODUCTIONS\bedrot-data-ecosystem" --type <type> --name <real file or folder> --verbatim-file <uniquely named file with Blake's exact words> --notes "<what went wrong and what to fix>"
 
 **type values:**
 
@@ -22,8 +20,11 @@ Corrections go here, not to Claude's memory. A critical correction saved to memo
   repo root. A fix to one of the pair also checks the other.
 - `base-doc`: repo documentation such as root markdown files, `docs`, `specs` or `references`. `name` is
   the path from the repo root.
-- `other`: anything else, such as a memory file, a hook, settings, a subagent, a slash command, MCP
-  config or a CLI tool. `name` is a path or a short label.
+- `other`: anything else, such as a hook, settings, a subagent, a slash command, MCP config or a
+  CLI tool. `name` is the path from the repo root, or an absolute path.
+
+Every `name` is a real file or folder, never a label or a description. If no file caused the failure,
+name the skill or CLAUDE.md the agent was following, because that is where the missing rule goes.
 
 **Statuses:** `PENDING` means the fix is not made yet. `IMPLEMENTED (date, commit or note)` means the fix
 is made. `REJECTED (date, reason)` means Blake decided not to act on it. Close an entry with
